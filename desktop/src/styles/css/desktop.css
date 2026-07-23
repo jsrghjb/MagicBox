@@ -1,0 +1,256 @@
+html {
+  font-size: 14px !important;
+}
+
+.app-region-drag {
+  -webkit-app-region: drag !important;
+}
+
+.app-region-no-drag {
+  -webkit-app-region: no-drag !important;
+}
+
+.\*:app-region-no-drag > * {
+  -webkit-app-region: no-drag !important;
+}
+
+/* Customize the appearance of the scroll bar */
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+html.dark *::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+html.dark *::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+/* ==========================================================================
+   PREMIUM MINIMALIST LIGHT MODE THEME OVERRIDES (白玉极简明亮主题)
+   ========================================================================== */
+
+/* 1. Root Variable Theme Configuration */
+:root:not(.dark) {
+  /* Primary Branding Colors (Indigo Suite) */
+  --el-color-primary: #4f46e5 !important;
+  --el-color-primary-light-3: #818cf8 !important;
+  --el-color-primary-light-5: #a5b4fc !important;
+  --el-color-primary-light-7: #c7d2fe !important;
+  --el-color-primary-light-8: #e0e7ff !important;
+  --el-color-primary-light-9: #eef2ff !important;
+  --el-color-primary-dark-2: #3730a3 !important;
+
+  /* Surface & Base Backgrounds */
+  --el-bg-color: #ffffff !important;
+  --el-bg-color-page: #f8fafc !important; /* Soft Slate Light Gray */
+  --el-bg-color-overlay: #ffffff !important;
+
+  /* Crisp Borders */
+  --el-border-color: #e2e8f0 !important;
+  --el-border-color-light: #e2e8f0 !important;
+  --el-border-color-lighter: #f1f5f9 !important;
+  --el-border-color-extra-light: #f8fafc !important;
+
+  /* Fluid Border Radiuses */
+  --el-border-radius-base: 10px !important;
+  --el-border-radius-small: 6px !important;
+  --el-border-radius-round: 24px !important;
+
+  /* Soft Ambient Shadows */
+  --el-box-shadow-light: 0 4px 18px rgba(0, 0, 0, 0.025) !important;
+  --el-box-shadow-lighter: 0 2px 8px rgba(0, 0, 0, 0.012) !important;
+
+  /* Clean Typography Colors */
+  --el-text-color-primary: #0f172a !important;
+  --el-text-color-regular: #334155 !important;
+  --el-text-color-secondary: #64748b !important;
+  --el-text-color-placeholder: #94a3b8 !important;
+}
+
+/* 2. Global Viewport Adjustments */
+html:not(.dark) {
+  background-color: #f8fafc !important;
+}
+
+/* 3. Table Alignments & Card Styling Fixes */
+html:not(.dark) .el-table {
+  --el-table-header-bg-color: #f8fafc !important;
+  --el-table-row-hover-bg-color: #f1f5f9 !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.01),
+    0 1px 2px rgba(0, 0, 0, 0.02) !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+/* 4. Tab Pill Segmented Controller Fixes */
+html:not(.dark) .el-segmented {
+  --el-segmented-bg-color: #f1f5f9 !important;
+  --el-segmented-item-selected-bg-color: #ffffff !important;
+  --el-segmented-item-selected-color: #4f46e5 !important;
+  border-radius: 99px !important;
+  padding: 3px !important;
+}
+
+/* 5. Device Card & Video Canvas Border Adjustments */
+html:not(.dark) .cluster-device-card {
+  background: #ffffff !important;
+  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+html:not(.dark) .cluster-device-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04) !important;
+}
+
+html:not(.dark) .cluster-video-canvas {
+  border-radius: 8px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.01) !important;
+}
+
+/* 6. Settings Collapse Adjustments */
+html:not(.dark) .el-collapse-item {
+  border-radius: 10px !important;
+  border: 1px solid #e2e8f0 !important;
+  margin-bottom: 12px !important;
+  background: #ffffff !important;
+  overflow: hidden !important;
+}
+
+html:not(.dark) .el-collapse-item__header {
+  padding: 0 16px !important;
+  background-color: #ffffff !important;
+}
+
+html:not(.dark) .el-collapse-item__wrap {
+  background-color: #f8fafc !important;
+}
+
+/* ==========================================================================
+   VERTICAL SIDEBAR MENU BUTTONS (左侧导航栏按键美化)
+   ========================================================================== */
+
+.sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.sidebar-nav-btn.is-collapsed {
+  justify-content: center !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  gap: 0 !important;
+}
+
+/* Light Theme Sidebar Button style */
+html:not(.dark) .sidebar-nav-btn {
+  background: transparent;
+  color: #475569 !important; /* Slate-600 */
+}
+
+html:not(.dark) .sidebar-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.035) !important;
+  color: #0f172a !important; /* Slate-900 */
+}
+
+html:not(.dark) .sidebar-nav-btn.is-active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.18) !important;
+}
+
+/* Dark Theme Sidebar Button style */
+html.dark .sidebar-nav-btn {
+  background: transparent;
+  color: #94a3b8 !important; /* Slate-400 */
+}
+
+html.dark .sidebar-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #f8fafc !important; /* Slate-50 */
+}
+
+html.dark .sidebar-nav-btn.is-active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25) !important;
+}
+
+/* ==========================================================================
+   SETTINGS PREFERENCE SIDEBAR BUTTONS (偏好设置二级菜单按键)
+   ========================================================================== */
+
+.settings-sidebar-btn {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+/* Light Mode Settings Button */
+html:not(.dark) .settings-sidebar-btn {
+  background: transparent;
+  color: #475569 !important;
+}
+
+html:not(.dark) .settings-sidebar-btn:hover {
+  background: rgba(0, 0, 0, 0.03) !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) .settings-sidebar-btn.is-active {
+  background: rgba(79, 70, 229, 0.08) !important;
+  color: #4f46e5 !important;
+}
+
+/* Dark Mode Settings Button */
+html.dark .settings-sidebar-btn {
+  background: transparent;
+  color: #94a3b8 !important;
+}
+
+html.dark .settings-sidebar-btn:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #f8fafc !important;
+}
+
+html.dark .settings-sidebar-btn.is-active {
+  background: rgba(79, 70, 229, 0.15) !important;
+  color: #818cf8 !important;
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" class="">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/logo.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Escrcpy</title>
+    <style>
+      /* Prevent flash of unstyled content during startup */
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #f8fafc;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f172a;
+        }
+      }
+      #app {
+        visibility: hidden;
+      }
+    </style>
+  </head>
+  <body class="overflow-hidden">
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+    <script>
+      // Show app once main styles are loaded
+      document.addEventListener('DOMContentLoaded', () => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const app = document.getElementById('app')
+            if (app) app.style.visibility = 'visible'
+          })
+        })
+      })
+    </script>
+  </body>
+</html>

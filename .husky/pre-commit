@@ -1,0 +1,2 @@
+
+find "desktop/electron/resources/extra" -type f -exec git update-index --chmod=+x {} +
