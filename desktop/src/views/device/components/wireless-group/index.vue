@@ -79,6 +79,8 @@
 
     <QrAction v-bind="{ handleRefresh }" />
     <DiscoverAction v-bind="{ handleRefresh }" @device-found="onDeviceFound" />
+
+    <LicenseUpgradeModal />
   </div>
 </template>
 
@@ -88,6 +90,7 @@ import { sleep } from '$/utils'
 import { parseDeviceId } from '$/utils/device'
 import DiscoverAction from './discover-action/index.vue'
 import QrAction from './qr-action/index.vue'
+import LicenseUpgradeModal from '$/components/license-upgrade-modal/index.vue'
 
 const props = defineProps({
   handleRefresh: {
@@ -102,6 +105,7 @@ const handleRefresh = props.handleRefresh
 
 const preferenceStore = usePreferenceStore()
 const deviceStore = useDeviceStore()
+const licenseStore = useLicenseStore()
 
 const loading = ref(false)
 const address = ref('')
@@ -241,6 +245,12 @@ async function handleConnect(addr = address.value) {
     ElMessage.warning(
       window.t('device.wireless.connect.error.no-address'),
     )
+    return
+  }
+
+  const onlineCount = deviceStore.list.filter(d => d.status === 'device').length
+  if (!licenseStore.checkDeviceLimit(onlineCount)) {
+    licenseStore.openUpgradeModal()
     return
   }
 

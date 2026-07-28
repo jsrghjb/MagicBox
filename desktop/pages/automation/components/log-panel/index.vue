@@ -14,13 +14,13 @@
       <div
         v-for="log in logs"
         :key="log.id"
-        class="px-2 py-1 rounded"
+        class="px-2.5 py-1.5 rounded-md text-xs break-all whitespace-pre-wrap transition-colors"
         :class="logClass(log.level)"
       >
-        <div class="text-gray-400">
+        <div class="text-gray-400 font-mono text-[10px] opacity-75 mb-0.5">
           {{ formatTime(log.time) }}
         </div>
-        <div>{{ log.message }}</div>
+        <div class="leading-snug">{{ log.message }}</div>
       </div>
     </div>
   </el-card>

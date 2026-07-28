@@ -1,6 +1,7 @@
 import { onUnmounted } from 'vue'
 import { mapPointerToPercent } from '@escrcpy/cluster-control/pointer-map.js'
 import { getDeviceMaxVideoSize } from '$/utils/cluster-preference-config.js'
+import { useAutomationStore } from '$/store/automation/index.js'
 
 const MOVE_INTERVAL_MS = 16
 function scaledVideoSize(device, serial) {
@@ -124,7 +125,14 @@ export function useClusterPointer({ getStreamSize, masterSerialRef, getDeviceByS
     el.addEventListener('lostpointercapture', endSession)
 
     try {
-      el.setPointerCapture(event.pointerId)
+      const automationStore = useAutomationStore()
+      if (automationStore.runnerStatus === 'running') {
+        automationStore.pauseRun({
+          isHumanIntervention: true,
+          deviceId: serial,
+          script: automationStore.currentScript,
+        })
+      }
     }
     catch {}
 

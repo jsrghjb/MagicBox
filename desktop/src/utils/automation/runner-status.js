@@ -3,4 +3,5 @@ export const RunnerStatus = {
   RUNNING: 'running',
   PAUSED: 'paused',
   STOPPED: 'stopped',
+  INTERRUPTED: 'interrupted',
 }

@@ -17,34 +17,49 @@
       </div>
 
       <!-- License Info Section -->
-      <div class="mt-6 p-5 rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/50 dark:bg-gray-900/30 flex flex-col gap-3.5 max-w-[380px] w-full text-sm shadow-sm">
+      <div class="mt-4 p-5 rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/50 dark:bg-gray-900/30 flex flex-col gap-3 max-w-[420px] w-full text-sm shadow-sm">
         <div class="flex items-center justify-between w-full border-b border-gray-100 dark:border-gray-800 pb-2">
-          <span class="text-gray-500 dark:text-gray-400 font-medium">授权状态</span>
-          <el-tag :type="licenseInfo.activated ? 'success' : 'danger'" size="default" effect="light" class="font-medium">
-            {{ licenseInfo.activated ? '已激活' : '未激活' }}
-          </el-tag>
-        </div>
-
-        <div v-if="licenseInfo.activated" class="flex items-center justify-between w-full border-b border-gray-100 dark:border-gray-800 pb-2">
-          <span class="text-gray-500 dark:text-gray-400 font-medium">有效期至</span>
-          <span class="font-mono text-gray-800 dark:text-gray-200 font-semibold">
-            {{ licenseInfo.expiryDate === '2099-12-31' ? '永久授权' : licenseInfo.expiryDate }}
-          </span>
-        </div>
-
-        <div class="flex flex-col gap-1.5 w-full">
-          <span class="text-gray-500 dark:text-gray-400 font-medium">设备机器码</span>
-          <div class="flex items-center gap-2 bg-gray-100/60 dark:bg-slate-900/60 border border-gray-200/40 dark:border-gray-800/40 rounded-lg p-2.5 font-mono text-xs text-gray-700 dark:text-gray-200">
-            <span class="flex-1 select-all tracking-wider text-center font-semibold">{{ licenseInfo.machineId }}</span>
-            <el-button size="small" type="primary" link icon="CopyDocument" class="p-1" @click="copyMachineId" />
+          <span class="text-gray-500 dark:text-gray-400 font-medium">授权版本</span>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-gray-800 dark:text-gray-200">
+              {{ licenseStore.isTeam ? '团队旗舰版' : licenseStore.isPersonal ? '个人专业版' : '免费体验版' }}
+            </span>
+            <el-tag :type="licenseStore.activated ? 'success' : 'info'" size="small" effect="light" class="font-medium">
+              {{ licenseStore.activated ? '已激活' : '免费版' }}
+            </el-tag>
           </div>
         </div>
 
-        <div v-if="licenseInfo.activated" class="w-full mt-1 pt-1 flex gap-3 justify-center">
+        <div v-if="licenseStore.activated" class="flex items-center justify-between w-full border-b border-gray-100 dark:border-gray-800 pb-2">
+          <span class="text-gray-500 dark:text-gray-400 font-medium">有效期至</span>
+          <span class="font-mono text-gray-800 dark:text-gray-200 font-semibold">
+            {{ licenseStore.expiryDate === '永久' || licenseStore.expiryDate === '2099-12-31' ? '永久授权' : licenseStore.expiryDate }}
+          </span>
+        </div>
+
+        <!-- 原生机器码 -->
+        <div class="flex flex-col gap-1 w-full border-b border-gray-100 dark:border-gray-800 pb-2">
+          <span class="text-gray-500 dark:text-gray-400 font-medium text-xs">原生设备机器码</span>
+          <div class="flex items-center gap-2 bg-gray-100/70 dark:bg-slate-900/70 border border-gray-200/50 dark:border-gray-800/50 rounded-lg px-2.5 py-1.5 font-mono text-xs text-gray-700 dark:text-gray-200">
+            <span class="flex-1 select-all tracking-wider font-semibold truncate">{{ licenseStore.machineId || '读取中...' }}</span>
+            <el-button size="small" type="primary" link icon="CopyDocument" class="!p-0" @click="copyMachineId" />
+          </div>
+        </div>
+
+        <!-- 当前激活码 -->
+        <div v-if="licenseStore.activeKey" class="flex flex-col gap-1 w-full">
+          <span class="text-gray-500 dark:text-gray-400 font-medium text-xs">当前卡密激活码</span>
+          <div class="flex items-center gap-2 bg-gray-100/70 dark:bg-slate-900/70 border border-gray-200/50 dark:border-gray-800/50 rounded-lg px-2.5 py-1.5 font-mono text-xs text-primary-600 dark:text-primary-400 font-semibold">
+            <span class="flex-1 select-all tracking-wider truncate">{{ licenseStore.activeKey }}</span>
+            <el-button size="small" type="primary" link icon="CopyDocument" class="!p-0" @click="copyActiveKey" />
+          </div>
+        </div>
+
+        <div class="w-full mt-1 pt-1 flex gap-3 justify-center">
           <el-button type="primary" size="default" class="flex-1 !rounded-xl" @click="handleRenew">
-            更新激活码
+            {{ licenseStore.activated ? '更换/续期激活码' : '输入卡密激活' }}
           </el-button>
-          <el-button type="danger" size="default" plain class="flex-1 !rounded-xl" @click="handleDeactivate">
+          <el-button v-if="licenseStore.activated" type="danger" size="default" plain class="flex-1 !rounded-xl" @click="handleDeactivate">
             解除绑定
           </el-button>
         </div>
@@ -118,8 +133,9 @@
 
 <script setup>
 import { version } from '/package.json'
+import { useLicenseStore } from '$/store/license/index.js'
 
-const licenseInfo = ref({ activated: false, machineId: '', expiryDate: '' })
+const licenseStore = useLicenseStore()
 
 // Update states
 const updateDialogVisible = ref(false)
@@ -127,19 +143,14 @@ const updateStatus = ref('idle') // idle | checking | available | downloading | 
 const downloadProgress = ref(0)
 const newVersionInfo = ref(null)
 
-async function checkLicense() {
-  try {
-    const res = await window.$preload.ipcRenderer.invoke('license:status')
-    licenseInfo.value = res
-  }
-  catch (e) {
-    console.error('License check failed:', e)
-  }
+function copyMachineId() {
+  navigator.clipboard.writeText(licenseStore.machineId || '')
+  ElMessage.success('原生机器码已复制到剪贴板！')
 }
 
-function copyMachineId() {
-  navigator.clipboard.writeText(licenseInfo.value.machineId)
-  ElMessage.success('机器码已复制到剪贴板！')
+function copyActiveKey() {
+  navigator.clipboard.writeText(licenseStore.activeKey || '')
+  ElMessage.success('激活码已复制到剪贴板！')
 }
 
 async function handleRenew() {
@@ -151,10 +162,10 @@ async function handleRenew() {
     })
 
     if (newKey && newKey.trim()) {
-      const res = await window.$preload.ipcRenderer.invoke('license:activate', { licenseKey: newKey.trim() })
+      const res = await licenseStore.activateKey(newKey.trim())
       if (res.success) {
         ElMessage.success('激活码更新成功！')
-        await checkLicense()
+        await licenseStore.fetchStatus()
       }
       else {
         ElMessage.error(res.error || '激活码验证失败')
@@ -170,15 +181,15 @@ async function handleRenew() {
 
 async function handleDeactivate() {
   try {
-    await ElMessageBox.confirm('确定要解除本机的授权绑定吗？解除后软件需要重新激活才能使用。', '解除绑定', {
-      confirmButtonText: '确定',
+    await ElMessageBox.confirm('确定要解除本机的授权绑定并恢复为免费体验版吗？', '解除绑定', {
+      confirmButtonText: '确定解绑',
       cancelButtonText: '取消',
       type: 'warning',
     })
-    const res = await window.$preload.ipcRenderer.invoke('license:deactivate')
+    const res = await licenseStore.deactivateKey()
     if (res.success) {
-      ElMessage.success('解除绑定成功！')
-      window.location.reload()
+      ElMessage.success('已解除授权，系统已恢复为免费体验版！')
+      await licenseStore.fetchStatus()
     }
   }
   catch (e) {
@@ -210,7 +221,7 @@ function installNow() {
 let unbindEvents = () => {}
 
 onMounted(() => {
-  checkLicense()
+  licenseStore.fetchStatus()
 
   const ipc = window.$preload.ipcRenderer
 

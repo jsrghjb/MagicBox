@@ -158,8 +158,10 @@ export async function scanMdnsDevices(options = {}) {
     onDevice(device)
   }
 
-  // Pre-seed known historical wireless devices as candidates
-  getHistoryWirelessDevices().forEach(addCandidate)
+  // Pre-seed known historical wireless devices only if explicitly requested
+  if (options.includeHistory) {
+    getHistoryWirelessDevices().forEach(addCandidate)
+  }
 
   return new Promise((resolve) => {
     let timeoutHandle = null

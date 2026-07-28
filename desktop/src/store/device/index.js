@@ -19,6 +19,7 @@ export const useDeviceStore = defineStore('app-device', () => {
     config.value = {
       ...($electronStore.get('device') || {}),
     }
+    $electronStore.set('removedDeviceIds', [])
     return config.value
   }
 
@@ -73,6 +74,35 @@ export const useDeviceStore = defineStore('app-device', () => {
     init()
   }
 
+  /**
+   * Resolve active connection ID for a given target (serialNo, old IP, or device object).
+   * Automatically handles IP changes / transport mode shifts!
+   */
+  function resolveActiveDevice(targetId) {
+    if (!targetId) {
+      return null
+    }
+    const target = typeof targetId === 'object' ? (targetId.serialNo || targetId.id) : targetId
+
+    // 1. Find currently active/online device matching serialNo, id, or historyIps
+    const onlineMatch = list.value.find(
+      d => (d.id === target || d.serialNo === target || d.historyIps?.includes(target)) && d.status === 'device',
+    )
+    if (onlineMatch) {
+      return onlineMatch.id
+    }
+
+    // 2. Fallback: match any device in list
+    const anyMatch = list.value.find(
+      d => d.id === target || d.serialNo === target || d.historyIps?.includes(target),
+    )
+    if (anyMatch) {
+      return anyMatch.id
+    }
+
+    return target
+  }
+
   return {
     list,
     config,
@@ -80,5 +110,6 @@ export const useDeviceStore = defineStore('app-device', () => {
     getLabel,
     getList,
     setRemark,
+    resolveActiveDevice,
   }
 })

@@ -10,7 +10,7 @@ import { streamToBase64 } from '$electron/helpers/index.js'
 import { sheller } from '$electron/helpers/shell/index.js'
 import { parseBatteryDump } from './helpers/battery/index.js'
 import { ADBDownloader } from './helpers/downloader/index.js'
-import adbScanner, { MDNS_CONFIG, probeDeviceCandidates, scanMdnsDevices } from './helpers/scanner/index.js'
+import adbScanner, { getHistoryWirelessDevices, MDNS_CONFIG, probeDeviceCandidates, scanMdnsDevices } from './helpers/scanner/index.js'
 import { ADBUploader } from './helpers/uploader/index.js'
 import { electronAPI } from '@electron-toolkit/preload'
 import { readDirWithStat } from './helpers/explorer/index.js'
@@ -72,7 +72,10 @@ async function shell(command) {
 }
 
 async function deviceShell(id, command) {
-  const res = await client.getDevice(id).shell(command).then(Adb.util.readAll)
+  const finalCmd = (command.includes('|') && !command.startsWith('sh -c'))
+    ? `sh -c "${command.replace(/"/g, '\\"')}"`
+    : command
+  const res = await client.getDevice(id).shell(finalCmd).then(Adb.util.readAll)
   return res.toString()
 }
 
@@ -254,13 +257,36 @@ async function discoverConnect(options = {}) {
     onDevice = () => {},
   } = options
 
-  const devices = await scanMdnsDevices({
+  // 1. Scan active mDNS services on local network
+  const mdnsDevices = await scanMdnsDevices({
     timeout,
     onStatus,
-    onDevice,
+    onDevice: () => {}, // Do not emit raw unverified mDNS items until port is probed
   })
 
-  if (!devices.length) {
+  // 2. Merge mDNS discovered candidates with historical wireless device candidates
+  const historyDevices = getHistoryWirelessDevices()
+  const candidateMap = new Map()
+
+  mdnsDevices.forEach((dev) => {
+    const { host, port } = parseDeviceId(dev.address)
+    const targetPort = dev.port || port || 5555
+    const key = `${host}:${targetPort}`
+    candidateMap.set(key, dev)
+  })
+
+  historyDevices.forEach((dev) => {
+    const { host, port } = parseDeviceId(dev.address)
+    const targetPort = dev.port || port || 5555
+    const key = `${host}:${targetPort}`
+    if (!candidateMap.has(key)) {
+      candidateMap.set(key, dev)
+    }
+  })
+
+  const candidateDevices = [...candidateMap.values()]
+
+  if (!candidateDevices.length) {
     return {
       success: false,
       errorCode: 'NO_DEVICES',
@@ -270,12 +296,17 @@ async function discoverConnect(options = {}) {
     }
   }
 
-  const reachableDevices = await probeDeviceCandidates(devices, {
+  // 3. Probing candidates concurrently on ports.
+  // ONLY emit onDevice when a device port is verified to be active and reachable!
+  const reachableDevices = await probeDeviceCandidates(candidateDevices, {
     ports,
     timeout: probeTimeout,
     concurrency,
     onStatus,
-    onDevice,
+    onDevice: (device) => {
+      onStatus('found', device)
+      onDevice(device)
+    },
   })
 
   if (!reachableDevices.length) {
@@ -285,7 +316,7 @@ async function discoverConnect(options = {}) {
       success: false,
       errorCode: 'NO_REACHABLE_DEVICES',
       error: 'No reachable ADB ports discovered',
-      devices,
+      devices: candidateDevices,
       results: [],
     }
   }
@@ -331,7 +362,7 @@ async function discoverConnect(options = {}) {
       success: false,
       errorCode: 'NO_UNCONNECTED_DEVICES',
       error: 'Discovered devices are already connected',
-      devices,
+      devices: candidateDevices,
       results: [],
     }
   }
@@ -379,7 +410,7 @@ async function discoverConnect(options = {}) {
     success,
     errorCode: success ? undefined : 'NO_CONNECTED_DEVICES',
     error: success ? undefined : 'Failed to connect discovered devices',
-    devices,
+    devices: candidateDevices,
     results,
   }
 }

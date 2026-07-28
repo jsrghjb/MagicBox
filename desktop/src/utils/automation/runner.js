@@ -127,25 +127,96 @@ function resolveTempScreenshotPath(deviceId) {
     || ''
 }
 
+const LAUNCHER_PACKAGES = [
+  'com.huawei.android.launcher',
+  'com.miui.home',
+  'com.android.launcher3',
+  'com.sec.android.app.launcher',
+  'com.oppo.launcher',
+  'com.vivo.launcher',
+  'com.google.android.apps.nexuslauncher',
+  'unihomelauncher',
+  'launcher',
+]
+
 export async function checkDeviceActivity(deviceId, adb) {
+  if (!adb?.deviceShell) {
+    return null
+  }
   try {
-    const stdout = await adb.shell(deviceId, 'dumpsys window | grep mCurrentFocus')
-    if (stdout) {
-      const match = String(stdout).match(/mCurrentFocus=\S*\s+([^\s/}]+\/[^\s/}]+)/)
-      if (match && match[1]) {
+    const raw = await adb.deviceShell(deviceId, 'dumpsys window | grep -E "mCurrentFocus|mFocusedApp"')
+    if (raw) {
+      const text = String(raw).trim()
+      if (!text) {
+        return null
+      }
+
+      const focusMatch = text.match(/([\w.]+\/[\w.$]+)/)
+      if (focusMatch) {
+        return focusMatch[1]
+      }
+    }
+  }
+  catch {}
+
+  try {
+    const raw2 = await adb.deviceShell(deviceId, 'dumpsys activity activities | grep -A1 "ResumedActivity"')
+    if (raw2) {
+      const match = String(raw2).match(/([\w.]+\/[\w.$]+)/)
+      if (match) {
         return match[1]
       }
+    }
+  }
+  catch {}
+
+  return null
+}
+
+export async function getCurrentTaskId(deviceId, adb) {
+  if (!adb?.deviceShell)
+    return null
+  try {
+    const raw = await adb.deviceShell(deviceId, 'dumpsys activity activities | grep -A2 "ResumedActivity"')
+    if (raw) {
+      const match = String(raw).match(/taskId=(\d+)/)
+      if (match)
+        return match[1]
     }
   }
   catch {}
   return null
 }
 
+export async function enableTaskLock(deviceId, adb, taskId) {
+  if (!adb?.deviceShell || !taskId)
+    return false
+  try {
+    await adb.deviceShell(deviceId, `am task lock ${taskId}`)
+    return true
+  }
+  catch {
+    return false
+  }
+}
+
+export async function disableTaskLock(deviceId, adb) {
+  if (!adb?.deviceShell)
+    return false
+  try {
+    await adb.deviceShell(deviceId, 'am task unlock')
+    return true
+  }
+  catch {
+    return false
+  }
+}
+
 export async function recoverDeviceState({ deviceId, adb, expectedActivity, onLog, signal }) {
   onLog?.({ level: 'info', message: '🔄 检测到页面不符，正在尝试自动触发自愈复位...' })
   // Attempt 1: Send BACK key (4) to dismiss popups or sub-activities
   try {
-    await adb.keyevent(deviceId, 4)
+    await adb.deviceShell(deviceId, 'input keyevent 4')
     await sleep(800, signal)
     if (expectedActivity) {
       const current = await checkDeviceActivity(deviceId, adb)
@@ -159,7 +230,7 @@ export async function recoverDeviceState({ deviceId, adb, expectedActivity, onLo
 
   // Attempt 2: Send HOME key (3) to return to home screen cleanly
   try {
-    await adb.keyevent(deviceId, 3)
+    await adb.deviceShell(deviceId, 'input keyevent 3')
     await sleep(800, signal)
     onLog?.({ level: 'info', message: '✅ 已复位返回系统桌面' })
     return true
@@ -168,6 +239,232 @@ export async function recoverDeviceState({ deviceId, adb, expectedActivity, onLo
 
   return false
 }
+
+const MAIN_ACTIVITY_PATTERNS = [
+  'mainactivity',
+  'homeactivity',
+  'indexactivity',
+  'maintabactivity',
+  'feedactivity',
+  'splashactivity',
+  'launcheractivity',
+  'detailactivity',
+  'videoactivity',
+  'awemedetail',
+  'feeds',
+  'listactivity',
+  'chatactivity',
+  'homefragment',
+  'mainfragment',
+  'recommend',
+  'discover',
+  'explore',
+  'homepage',
+  'dashboard',
+]
+
+const SUB_PAGE_PATTERNS = [
+  'subactivity',
+  'fragmentactivity',
+  'dialogactivity',
+  'popupactivity',
+  'commentactivity',
+  'commentlistactivity',
+  'postdetailactivity',
+  'notedetailactivity',
+  'dialog',
+  'popup',
+]
+
+function isSubPageActivity(activityName = '', expectedActivity = '') {
+  if (!activityName) {
+    return false
+  }
+  if (expectedActivity && activityName.includes(expectedActivity)) {
+    return false
+  }
+
+  const actLower = activityName.toLowerCase()
+
+  const isMainPattern = MAIN_ACTIVITY_PATTERNS.some(pat => actLower.includes(pat))
+  if (isMainPattern) {
+    return false
+  }
+
+  return SUB_PAGE_PATTERNS.some(pat => actLower.includes(pat))
+}
+
+export async function alignAndResumeContext({ deviceId, adb, step, steps = [], startIndex = 0, targetPackageName = '', onLog, signal }) {
+  onLog?.({ level: 'info', message: '🔍 启动断点恢复上下文校验与环境对齐...' })
+  if (!step && !steps.length) {
+    return true
+  }
+
+  let expectedActivity = step?.pageAnchor?.activity || step?.expectedActivity
+  let expectedDeeplink = step?.pageAnchor?.deeplink || step?.deeplink
+  let expectedPackage = step?.pageAnchor?.package || step?.package || targetPackageName
+
+  // Inherit target package/activity context from preceding steps if step doesn't specify one
+  if (!expectedPackage && !expectedActivity && !expectedDeeplink && steps.length) {
+    for (let i = Math.min(startIndex, steps.length - 1); i >= 0; i--) {
+      const prev = steps[i]
+      if (!prev) {
+        continue
+      }
+      if (prev.package || prev.pageAnchor?.package) {
+        expectedPackage = prev.package || prev.pageAnchor?.package
+      }
+      if (prev.expectedActivity || prev.pageAnchor?.activity) {
+        expectedActivity = prev.expectedActivity || prev.pageAnchor?.activity
+      }
+      if (prev.deeplink || prev.pageAnchor?.deeplink) {
+        expectedDeeplink = prev.deeplink || prev.pageAnchor?.deeplink
+      }
+      if (expectedPackage || expectedActivity || expectedDeeplink) {
+        break
+      }
+    }
+  }
+
+  // 0. Auto Wakeup, Unlock & Soft Keyboard Dismissal
+  if (adb) {
+    try {
+      await adb.deviceShell(deviceId, 'input keyevent 224') // KEYCODE_WAKEUP
+      await adb.deviceShell(deviceId, 'input keyevent 82') // KEYCODE_UNLOCK
+      await adb.deviceShell(deviceId, 'input keyevent 111') // KEYCODE_ESCAPE (close keyboard)
+      await sleep(300, signal)
+    }
+    catch {}
+  }
+
+  // 1. Context check: Is device currently in target Activity or Package?
+  if (adb) {
+    const current = await checkDeviceActivity(deviceId, adb)
+    if (current) {
+      // Direct match with expectedActivity
+      if (expectedActivity && current.includes(expectedActivity)) {
+        onLog?.({ level: 'info', message: `✅ 页面上下文一致 (${current})，即将恢复执行` })
+        return true
+      }
+
+      // Inside target package, check if human intervention clicked into a sub-page/dialog!
+      if (expectedPackage && current.includes(expectedPackage)) {
+        const subPageDetected = isSubPageActivity(current, expectedActivity)
+        if (subPageDetected) {
+          onLog?.({ level: 'warning', message: `⚠️ 检测到人工干预进入了子页面/弹窗 (${current})，正在发送返回键自动归位...` })
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              await adb.deviceShell(deviceId, 'input keyevent 4') // BACK KEY
+              await sleep(650, signal)
+              const newFocus = await checkDeviceActivity(deviceId, adb)
+              if (newFocus && newFocus.includes(expectedPackage)) {
+                const isStillSub = isSubPageActivity(newFocus, expectedActivity)
+                if (expectedActivity ? newFocus.includes(expectedActivity) : !isStillSub) {
+                  onLog?.({ level: 'info', message: `✅ 已成功自动退回主界面 (${newFocus})！` })
+                  return true
+                }
+              }
+            }
+            catch {}
+          }
+        }
+        else {
+          if (expectedPackage && (expectedPackage.includes('xingin.xhs') || expectedPackage.includes('aweme'))) {
+            try {
+              const screenSize = await adb.getScreenSize(deviceId)
+              if (screenSize) {
+                const homeTabX = Math.round(screenSize.width * 0.12)
+                const homeTabY = Math.round(screenSize.height * 0.96)
+                onLog?.({ level: 'info', message: '📌 断点复位对齐：点击左下角 [首页] Tab 确保切回主 Feed 流...' })
+                await adb.deviceShell(deviceId, `input tap ${homeTabX} ${homeTabY}`)
+                await sleep(500, signal)
+              }
+            }
+            catch {}
+          }
+
+          onLog?.({ level: 'info', message: `✅ 应用主界面上下文一致 (${current})，即将恢复执行` })
+          return true
+        }
+      }
+    }
+  }
+
+  // 2. Level 1: Deeplink Direct Jump
+  if (expectedDeeplink && adb) {
+    onLog?.({ level: 'info', message: `⚡ 正在尝试通过 Deeplink 直达断点页面: ${expectedDeeplink}` })
+    try {
+      await adb.deviceShell(deviceId, `am start -a android.intent.action.VIEW -d "${expectedDeeplink}"`)
+      await sleep(1200, signal)
+      const current = await checkDeviceActivity(deviceId, adb)
+      if (!expectedActivity || (current && current.includes(expectedActivity))) {
+        onLog?.({ level: 'info', message: '✅ Deeplink 直达成功！页面环境已对齐' })
+        return true
+      }
+    }
+    catch (e) {
+      onLog?.({ level: 'warning', message: `Deeplink 直达未成功: ${e.message || e}` })
+    }
+  }
+
+  // 3. Level 2: Target Activity Launch
+  if (expectedActivity && expectedPackage && adb) {
+    onLog?.({ level: 'info', message: `⚡ 正在尝试直接拉起目标 Activity: ${expectedPackage}/${expectedActivity}` })
+    try {
+      const actTarget = expectedActivity.startsWith('.') ? `${expectedPackage}${expectedActivity}` : expectedActivity
+      await adb.deviceShell(deviceId, `am start -n "${expectedPackage}/${actTarget}"`)
+      await sleep(1200, signal)
+      const current = await checkDeviceActivity(deviceId, adb)
+      if (current && current.includes(expectedActivity)) {
+        onLog?.({ level: 'info', message: '✅ Target Activity 拉起成功！页面已对齐' })
+        return true
+      }
+    }
+    catch (e) {
+      onLog?.({ level: 'warning', message: `Activity 拉起失败: ${e.message || e}` })
+    }
+  }
+
+  // 4. Level 3: Android Task Stack Single-Top Heat-Wakeup (0-Restart, zero progress loss)
+  if (expectedPackage && adb) {
+    onLog?.({ level: 'info', message: `⚡ 检测到界面偏离，正在通过任务栈热唤醒切回前台 (${expectedPackage})...` })
+    try {
+      if (expectedActivity) {
+        const actTarget = expectedActivity.startsWith('.') ? `${expectedPackage}${expectedActivity}` : expectedActivity
+        await adb.deviceShell(deviceId, `am start -W --activity-single-top -n "${expectedPackage}/${actTarget}"`)
+      }
+      else {
+        await adb.deviceShell(deviceId, `monkey -p ${expectedPackage} -c android.intent.category.LAUNCHER 1`)
+      }
+      await sleep(1000, signal)
+      onLog?.({ level: 'info', message: '✅ 目标应用已无缝热唤醒至前台（保持原进度与登录状态）' })
+      return true
+    }
+    catch (e) {
+      onLog?.({ level: 'warning', message: `任务栈热唤醒失败: ${e.message || e}` })
+    }
+  }
+
+  // 5. Level 4: Fallback recoverDeviceState (BACK / HOME)
+  if (adb) {
+    const recovered = await recoverDeviceState({
+      deviceId,
+      adb,
+      expectedActivity: expectedActivity || expectedPackage,
+      onLog,
+      signal,
+    })
+
+    if (recovered) {
+      onLog?.({ level: 'info', message: '✅ 已完成自愈复位对齐，准备恢复执行' })
+      return true
+    }
+  }
+
+  onLog?.({ level: 'info', message: 'ℹ️ 未检测到特定页面锚点或强约束，将在当前界面恢复执行' })
+  return true
+}
+
 async function evaluateIfCondition({ step, deviceId, adb, onLog, signal }) {
   if (step.condition === 'always') {
     return true
@@ -240,6 +537,8 @@ async function runWaitFor({ step, deviceId, adb, onLog, signal }) {
   }
   throw new Error('waitFor: 等待图片超时')
 }
+
+const MONITORED_STEP_TYPES = ['tap', 'swipe', 'input', 'wait', 'key', 'launch', 'command', 'install', 'screenshot', 'record', 'findImage', 'waitFor', 'if', 'loop', 'end']
 
 async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null) {
   switch (step.type) {
@@ -453,9 +752,11 @@ export function createRunner() {
     steps = [],
     vars = {},
     stepIndexes = null,
+    isResume = false,
     onStepStart,
     onStepEnd,
     onLog,
+    onHumanIntervention,
   } = {}) {
     if (!deviceId) {
       throw new Error('NO_DEVICE')
@@ -468,7 +769,6 @@ export function createRunner() {
     const adb = window.$preload.adb
     const indexes = stepIndexes ?? steps.map((_, index) => index)
 
-    // Plan 4: Fetch screen size once for coordinate boundary clamping
     let screenSize = null
     try {
       screenSize = await adb.getScreenSize(deviceId)
@@ -479,6 +779,137 @@ export function createRunner() {
     controller.signal = controller.abortController.signal
     controller.paused = false
     controller.status = RunnerStatus.RUNNING
+
+    let isAligningContext = false
+    let targetPackageName = ''
+    for (const s of steps) {
+      if (s?.package || s?.pageAnchor?.package) {
+        targetPackageName = s.package || s.pageAnchor?.package
+        break
+      }
+    }
+
+    let lockedTaskId = null
+    let taskLockEnabled = false
+
+    // Phase 1: Try to enable Task Lock (screen pinning) before execution
+    if (adb) {
+      onLog?.({ level: 'info', message: '🔒 正在启用屏幕锁定模式，防止意外切换...' })
+      try {
+        if (targetPackageName) {
+          const taskId = await getCurrentTaskId(deviceId, adb)
+          if (taskId) {
+            const ok = await enableTaskLock(deviceId, adb, taskId)
+            if (ok) {
+              taskLockEnabled = true
+              lockedTaskId = taskId
+              onLog?.({ level: 'success', message: '✅ 屏幕锁定已启用，脚本执行期间将无法意外切换应用' })
+            }
+            else {
+              onLog?.({ level: 'warning', message: '⚠️ 设备可能不支持屏幕锁定，将使用后台监控' })
+            }
+          }
+        }
+      }
+      catch {
+        onLog?.({ level: 'warning', message: '⚠️ 屏幕锁定启用失败，将使用后台监控' })
+      }
+    }
+
+    // Phase 2: Resolve targetPackageName if not found in steps
+    if (!targetPackageName && adb) {
+      try {
+        const current = await checkDeviceActivity(deviceId, adb)
+        if (current) {
+          const pkg = current.split('/')[0]
+          if (pkg && !LAUNCHER_PACKAGES.some(lp => pkg.toLowerCase().includes(lp))) {
+            targetPackageName = pkg
+            onLog?.({ level: 'info', message: `📌 初始环境检测: 当前前台应用 ${pkg}` })
+          }
+        }
+      }
+      catch {
+        onLog?.({ level: 'warning', message: '⚠️ 初始环境检测失败' })
+      }
+    }
+
+    if (!targetPackageName) {
+      onLog?.({ level: 'info', message: 'ℹ️ 未锁定目标包名，后台监控将检测任意Activity变化' })
+    }
+    else {
+      onLog?.({ level: 'info', message: `📌 目标应用包名: ${targetPackageName}` })
+    }
+
+    // Phase 3: Start background activity monitor
+    let lastKnownActivity = ''
+    let monitorRunning = true
+    let interventionDetected = false
+
+    const startBackgroundMonitor = async () => {
+      if (!adb)
+        return
+      onLog?.({ level: 'info', message: '🔍 后台Activity监控已启动 (每1秒检测)' })
+
+      // eslint-disable-next-line no-unmodified-loop-condition
+      while (monitorRunning && !controller.signal.aborted) {
+        await sleep(1000, controller.signal)
+        if (controller.signal.aborted || !monitorRunning)
+          break
+
+        try {
+          const current = await checkDeviceActivity(deviceId, adb)
+          if (!current)
+            continue
+
+          if (!lastKnownActivity) {
+            lastKnownActivity = current
+            continue
+          }
+
+          if (current !== lastKnownActivity) {
+            const newPkg = current.split('/')[0]
+            const oldPkg = lastKnownActivity.split('/')[0]
+            const isLauncher = LAUNCHER_PACKAGES.some(p => newPkg.toLowerCase().includes(p))
+            const isInputMethod = newPkg.toLowerCase().includes('inputmethod')
+            const isStatusBar = newPkg.toLowerCase().includes('statusbar')
+
+            if (!isLauncher && !isInputMethod && !isStatusBar) {
+              if (newPkg !== oldPkg) {
+                onLog?.({
+                  level: 'warning',
+                  message: `🖐️ 后台监控检测到Activity变化: ${lastKnownActivity} → ${current}`,
+                })
+                interventionDetected = true
+                pause()
+                onHumanIntervention?.({ deviceId, currentActivity: current })
+                lastKnownActivity = current
+                break
+              }
+            }
+          }
+          lastKnownActivity = current
+        }
+        catch {}
+      }
+    }
+
+    const monitorPromise = startBackgroundMonitor()
+
+    const stopMonitor = () => {
+      monitorRunning = false
+    }
+
+    // Phase 4: Release Task Lock when done
+    const releaseTaskLock = async () => {
+      if (taskLockEnabled) {
+        try {
+          await disableTaskLock(deviceId, adb)
+          onLog?.({ level: 'info', message: '🔓 屏幕锁定已解除' })
+        }
+        catch {}
+        taskLockEnabled = false
+      }
+    }
 
     try {
       // Control-flow walker: steps is a flat list but `if` / `loop` open a block
@@ -527,8 +958,28 @@ export function createRunner() {
       }
 
       let index = indexes[0] ?? 0
+
+      if (isResume && steps[index]) {
+        isAligningContext = true
+        try {
+          await alignAndResumeContext({
+            deviceId,
+            adb,
+            step: steps[index],
+            steps,
+            startIndex: index,
+            targetPackageName,
+            onLog,
+            signal: controller.signal,
+          })
+        }
+        finally {
+          isAligningContext = false
+        }
+      }
+
       let loopGuard = 0
-      const maxIterations = totalSteps * 50 // safety against runaway loops
+      const maxIterations = totalSteps * 50
 
       while (index < totalSteps) {
         loopGuard++
@@ -539,10 +990,7 @@ export function createRunner() {
           throw new Error('STOPPED')
         }
 
-        // If we're past the requested range (when stepIndexes is supplied) and
-        // not inside a control-flow frame, stop.
         if (stepIndexes && !frameStack.length && !stepIndexes.includes(index)) {
-          // fast path: no frame, skip ahead
           const next = stepIndexes.find(i => i > index)
           if (next == null) {
             break
@@ -553,6 +1001,32 @@ export function createRunner() {
 
         const rawStep = steps[index]
         await waitWhilePaused(controller)
+
+        // 🛡️ Fast-path pre-step check (complements the background monitor)
+        if (adb && !isAligningContext && MONITORED_STEP_TYPES.includes(rawStep?.type)) {
+          try {
+            const current = await checkDeviceActivity(deviceId, adb)
+            if (current && lastKnownActivity && current !== lastKnownActivity) {
+              const newPkg = current.split('/')[0]
+              const oldPkg = lastKnownActivity.split('/')[0]
+              const isLauncher = LAUNCHER_PACKAGES.some(p => newPkg.toLowerCase().includes(p))
+              const isInputMethod = newPkg.toLowerCase().includes('inputmethod')
+              const isStatusBar = newPkg.toLowerCase().includes('statusbar')
+
+              if (!isLauncher && !isInputMethod && !isStatusBar && newPkg !== oldPkg) {
+                onLog?.({
+                  level: 'warning',
+                  message: `🖐️ 快速检测到Activity变化: ${lastKnownActivity} → ${current}`,
+                })
+                interventionDetected = true
+                pause()
+                onHumanIntervention?.({ deviceId, currentActivity: current })
+                await waitWhilePaused(controller)
+              }
+            }
+          }
+          catch {}
+        }
 
         // Skip orphan control-flow nodes silently
         if (skipIndex.has(index)) {
@@ -730,7 +1204,7 @@ export function createRunner() {
           if (loopStep.resetHomeBefore) {
             onLog?.({ level: 'info', message: '🏠 前置发送 HOME 键重置桌面状态' })
             try {
-              await adb.keyevent(deviceId, 3)
+              await adb.deviceShell(deviceId, 'input keyevent 3')
               await sleep(800, controller.signal)
             }
             catch {}
@@ -857,6 +1331,14 @@ export function createRunner() {
       onLog?.({ level: 'error', message: error?.message || String(error) })
       throw error
     }
+    finally {
+      stopMonitor()
+      try {
+        await monitorPromise
+      }
+      catch {}
+      await releaseTaskLock()
+    }
   }
 
   return {
@@ -923,6 +1405,20 @@ export async function runAutomationMatrix({
             steps: finalSteps,
             vars: { ...baseVars, ...rowVars },
             onLog: entry => onDeviceLog?.(deviceId, entry),
+            onHumanIntervention: async ({ currentActivity }) => {
+              onDeviceLog?.(deviceId, {
+                level: 'warning',
+                message: `🖐️ 捕获到物理界面变动 (${currentActivity})，3 秒后自动环境复位归位...`,
+              })
+              await sleep(3000)
+              await alignAndResumeContext({
+                deviceId,
+                adb: window.$preload.adb,
+                steps: finalSteps,
+                onLog: entry => onDeviceLog?.(deviceId, entry),
+              })
+              runner.resume()
+            },
           })
           done += 1
           const result = { deviceId, rowIndex: r, label, success: true }

@@ -13,15 +13,20 @@ const ScheduleTimerType = {
 
 function convertScheduleToCronExpression(schedule) {
   if (schedule.timerType === ScheduleTimerType.CRON) {
-    return schedule.cronExpression || null
+    const expr = schedule.cronExpression
+    if (!expr || typeof expr !== 'string') {
+      return null
+    }
+    return expr
   }
 
   if (schedule.timerType === ScheduleTimerType.TIMEOUT) {
-    if (!schedule.timeout) {
+    const timeoutValue = Number(schedule.timeout)
+    if (!timeoutValue || Number.isNaN(timeoutValue) || timeoutValue <= Date.now()) {
       return null
     }
 
-    const date = new Date(schedule.timeout)
+    const date = new Date(timeoutValue)
 
     if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) {
       return null
@@ -34,25 +39,35 @@ function convertScheduleToCronExpression(schedule) {
     return null
   }
 
-  const intervalValue = Number.parseInt(schedule.interval)
+  const intervalValue = Number(schedule.interval)
 
-  if (!intervalValue || intervalValue <= 0) {
+  if (!intervalValue || Number.isNaN(intervalValue) || intervalValue <= 0) {
     return null
   }
 
   switch (schedule.intervalType) {
-    case 'second':
-      return `*/${intervalValue} * * * * *`
-    case 'minute':
-      return `*/${intervalValue} * * * *`
-    case 'hour':
-      return `0 */${intervalValue} * * *`
-    case 'day':
-      return `0 0 */${intervalValue} * *`
+    case 'second': {
+      const step = Math.min(Math.floor(intervalValue), 59)
+      return `*/${step} * * * * *`
+    }
+    case 'minute': {
+      const step = Math.min(Math.floor(intervalValue), 59)
+      return `*/${step} * * * *`
+    }
+    case 'hour': {
+      const step = Math.min(Math.floor(intervalValue), 23)
+      return `0 */${step} * * *`
+    }
+    case 'day': {
+      const step = Math.min(Math.floor(intervalValue), 31)
+      return `0 0 */${step} * *`
+    }
     case 'millisecond':
       return '* * * * * *'
-    default:
-      return `*/${intervalValue} * * * *`
+    default: {
+      const step = Math.min(Math.floor(intervalValue), 59)
+      return `*/${step} * * * *`
+    }
   }
 }
 
@@ -128,13 +143,19 @@ function startCronJob(sender, schedule) {
     cronOptions.maxRuns = 1
   }
 
-  const cronJob = new Cron(cronExpression, cronOptions, () => {
-    sendTick(senderId, schedule.id)
+  let cronJob
+  try {
+    cronJob = new Cron(cronExpression, cronOptions, () => {
+      sendTick(senderId, schedule.id)
 
-    if (schedule.timerType === ScheduleTimerType.TIMEOUT) {
-      stopCronJob(schedule.id)
-    }
-  })
+      if (schedule.timerType === ScheduleTimerType.TIMEOUT) {
+        stopCronJob(schedule.id)
+      }
+    })
+  }
+  catch (err) {
+    throw new Error(`Invalid cron expression "${cronExpression}": ${err.message || err}`)
+  }
 
   cronInstances.set(schedule.id, {
     cronJob,

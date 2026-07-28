@@ -1,5 +1,14 @@
 <template>
   <div class="flex items-center gap-2">
+    <el-button
+      v-if="hasBreakpoint && !['running'].includes(status)"
+      type="warning"
+      @click="$emit('resume-breakpoint')"
+    >
+      <i class="i-bi-play-circle-fill mr-1"></i>
+      从断点恢复 (第{{ (breakpointIndex ?? 0) + 1 }}步)
+    </el-button>
+
     <el-button type="primary" :disabled="!hasScript || !hasSteps" @click="$emit('run-all')">
       {{ $t('automation.run.all') }}
     </el-button>
@@ -32,9 +41,14 @@ const props = defineProps({
   hasScript: Boolean,
   hasSteps: Boolean,
   hasSelection: Boolean,
+  hasBreakpoint: Boolean,
+  breakpointIndex: {
+    type: Number,
+    default: 0,
+  },
 })
 
-defineEmits(['run-all', 'run-step', 'run-selected', 'pause', 'resume', 'stop'])
+defineEmits(['run-all', 'run-step', 'run-selected', 'pause', 'resume', 'stop', 'resume-breakpoint'])
 
 const statusLabel = computed(() => {
   const map = {
@@ -42,7 +56,9 @@ const statusLabel = computed(() => {
     running: 'automation.state.running',
     paused: 'automation.state.paused',
     stopped: 'automation.state.stopped',
+    interrupted: '中断异常',
   }
-  return window.t(map[props.status] || map.idle)
+  const key = map[props.status] || map.idle
+  return key.startsWith('automation.') ? window.t(key) : key
 })
 </script>

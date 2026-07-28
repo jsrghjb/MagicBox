@@ -39,7 +39,7 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item :label="$t('automation.step.delayBefore')">
+        <el-form-item v-if="step.type !== 'end'" :label="$t('automation.step.delayBefore')">
           <div class="flex items-center gap-2 w-full">
             <el-input-number
               :model-value="step.delayBefore || 0"
@@ -60,7 +60,7 @@
           </div>
         </el-form-item>
 
-        <el-form-item :label="$t('automation.step.loopCount')">
+        <el-form-item v-if="!isControlStep" :label="$t('automation.step.loopCount')">
           <div class="flex items-center gap-2 w-full">
             <el-input-number
               :model-value="step.loopCount || 1"
@@ -80,7 +80,7 @@
           </div>
         </el-form-item>
 
-        <el-form-item :label="$t('automation.step.randomRange')">
+        <el-form-item v-if="isRandomizableStep" :label="$t('automation.step.randomRange')">
           <div class="flex items-center gap-2">
             <el-input-number
               :model-value="step.randomRange || 0"
@@ -100,7 +100,7 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="容错与自愈">
+        <el-form-item v-if="!isControlStep" label="容错与自愈">
           <div class="flex flex-col gap-1.5 w-full">
             <el-checkbox
               :model-value="Boolean(step.continueOnError)"
@@ -117,7 +117,7 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="预期界面 Activity">
+        <el-form-item v-if="step.type !== 'end'" label="预期界面 Activity">
           <el-input
             :model-value="step.expectedActivity || ''"
             placeholder="可选: 校验包/Activity名 (如 .MainActivity)"
@@ -494,6 +494,8 @@ const pickerVisible = ref(false)
 const pickerMode = ref('tap')
 const keyOptions = KEY_OPTIONS
 const ifConditionOptions = IF_CONDITION_OPTIONS
+const isControlStep = computed(() => ['if', 'loop', 'end'].includes(props.step?.type))
+const isRandomizableStep = computed(() => ['tap', 'swipe', 'wait'].includes(props.step?.type))
 
 const stepGroups = computed(() => [
   {

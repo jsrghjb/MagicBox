@@ -9,68 +9,116 @@ function step(type, overrides = {}) {
 
 export const AUTOMATION_TEMPLATES = [
   {
-    id: 'launch',
-    nameKey: 'automation.template.launch.name',
-    descKey: 'automation.template.launch.desc',
+    id: 'general_basic',
+    name: '通用基础 - 应用启动与截图',
+    category: 'general',
+    description: '适用于通用安卓应用的模拟启动、等待与截图留存。',
     vars: {},
     buildSteps() {
       return [
-        step('key', { name: 'Home', key: '3' }),
-        step('wait', { name: 'Wait', duration: 1000 }),
+        step('key', { name: '返回桌面 Home', key: '3' }),
+        step('wait', { name: '等待应用准备', duration: 1500 }),
+        step('screenshot', { name: '截屏留存记录', auto: true }),
       ]
     },
   },
   {
-    id: 'login',
-    nameKey: 'automation.template.login.name',
-    descKey: 'automation.template.login.desc',
+    id: 'xiaohongshu_like',
+    name: '📕 小红书 - 自动刷笔记与点赞',
+    category: 'xiaohongshu',
+    description: '自动启动小红书 App，浏览推荐页笔记并双击点赞互动。',
     vars: {
-      username: 'user@example.com',
-      password: 'password',
+      searchKeyword: '数码好物推荐',
     },
     buildSteps() {
       return [
-        step('tap', { name: 'Account', x: 200, y: 400 }),
-        step('input', { name: 'Username', text: '{username}' }),
-        step('tap', { name: 'Password', x: 200, y: 500 }),
-        step('input', { name: 'Password Input', text: '{password}' }),
-        step('tap', { name: 'Login', x: 200, y: 600 }),
+        step('launch', { name: '启动小红书 App', package: 'com.xingin.xhs' }),
+        step('wait', { name: '等待小红书加载', duration: 3500 }),
+        step('swipe', { name: '向上滑动浏览笔记', startX: 500, startY: 1600, endX: 500, endY: 400, duration: 300 }),
+        step('wait', { name: '停留阅读内容', duration: 2500 }),
+        step('tap', { name: '双击笔记点赞 (爱心)', x: 500, y: 1000 }),
+        step('wait', { name: '点赞冷却等待', duration: 1500 }),
+        step('swipe', { name: '继续滑动下条笔记', startX: 500, startY: 1600, endX: 500, endY: 400, duration: 300 }),
+        step('screenshot', { name: '交互完成截图', auto: true }),
       ]
     },
   },
   {
-    id: 'screenshot',
-    nameKey: 'automation.template.screenshot.name',
-    descKey: 'automation.template.screenshot.desc',
-    vars: {},
+    id: 'douyin_interact',
+    name: '🎵 抖音/TikTok - 短视频自动浏览与双击',
+    category: 'douyin',
+    description: '自动启动抖音 App，循环刷推荐视频并双击点赞加关注。',
+    vars: {
+      watchDuration: '3000',
+    },
     buildSteps() {
       return [
-        step('screenshot', { name: 'Screenshot', auto: true }),
-        step('wait', { name: 'Wait', duration: 1000 }),
+        step('launch', { name: '启动抖音 App', package: 'com.ss.android.ugc.aweme' }),
+        step('wait', { name: '等待视频播放', duration: 3500 }),
+        step('tap', { name: '屏幕中央双击点赞', x: 500, y: 1000 }),
+        step('wait', { name: '观看视频 3 秒', duration: 3000 }),
+        step('swipe', { name: '向上上滑切换下一条视频', startX: 500, startY: 1500, endX: 500, endY: 300, duration: 250 }),
+        step('wait', { name: '观看下条视频', duration: 3000 }),
+        step('screenshot', { name: '自动保存截图', auto: true }),
       ]
     },
   },
   {
-    id: 'wechat',
-    nameKey: 'automation.template.wechat.name',
-    descKey: 'automation.template.wechat.description',
+    id: 'wechat_channels',
+    name: '💬 微信/视频号 - 视频号养号与搜索',
+    category: 'wechat',
+    description: '自动调起微信客户端，搜索助手或浏览视频号专区。',
     vars: {
       searchText: '文件传输助手',
-      message: 'Hello from Escrcpy',
+      message: 'Escrcpy 自动自动化测试消息',
     },
     buildSteps() {
       return [
-        step('launch', { name: 'automation.template.wechat.launch', package: 'com.tencent.mm' }),
-        step('wait', { name: 'Wait Launch', duration: 3000 }),
-        step('tap', { name: 'automation.template.wechat.tap.search', x: 900, y: 120 }),
-        step('input', { name: 'automation.template.wechat.input.search', text: '{searchText}' }),
-        step('wait', { name: 'Wait Search', duration: 1500 }),
-        step('tap', { name: 'automation.template.wechat.tap.search.result', x: 500, y: 280 }),
-        step('tap', { name: 'automation.template.wechat.tap.message.input', x: 500, y: 2100 }),
-        step('input', { name: 'automation.template.wechat.input.message', text: '{message}' }),
-        step('tap', { name: 'automation.template.wechat.tap.send', x: 980, y: 2100 }),
-        step('wait', { name: 'Wait Send', duration: 1000 }),
-        step('screenshot', { name: 'automation.template.wechat.screenshot', auto: true }),
+        step('launch', { name: '启动微信 App', package: 'com.tencent.mm' }),
+        step('wait', { name: '等待微信主界面', duration: 3000 }),
+        step('tap', { name: '点击顶部搜索图标', x: 900, y: 120 }),
+        step('input', { name: '输入目标内容', text: '{searchText}' }),
+        step('wait', { name: '等待搜索结果', duration: 1500 }),
+        step('tap', { name: '点击第一项结果', x: 500, y: 280 }),
+        step('tap', { name: '点击消息输入框', x: 500, y: 2100 }),
+        step('input', { name: '输入测试消息', text: '{message}' }),
+        step('tap', { name: '点击发送按钮', x: 980, y: 2100 }),
+        step('screenshot', { name: '发送完成保存截图', auto: true }),
+      ]
+    },
+  },
+  {
+    id: 'ecommerce_shop',
+    name: '🛒 跨境电商 - 自动搜索与商品浏览',
+    category: 'ecommerce',
+    description: '自动在跨境电商客户端中搜索热门商品并模拟加购。',
+    vars: {
+      keyword: 'Wireless Earbuds',
+    },
+    buildSteps() {
+      return [
+        step('launch', { name: '启动跨境购物 App', package: 'com.amazon.mShop.android.shopping' }),
+        step('wait', { name: '等待商城首页加载', duration: 4000 }),
+        step('tap', { name: '点击搜索栏', x: 500, y: 150 }),
+        step('input', { name: '输入商品关键字', text: '{keyword}' }),
+        step('wait', { name: '等待商品列表展示', duration: 2000 }),
+        step('swipe', { name: '下滑浏览热门商品', startX: 500, startY: 1500, endX: 500, endY: 500, duration: 400 }),
+        step('screenshot', { name: '商品展示截图记录', auto: true }),
+      ]
+    },
+  },
+  {
+    id: 'custom_matrix',
+    name: '⚙️ 自定义 - 矩阵群控通用作业模板',
+    category: 'custom',
+    description: '适用于多机矩阵自动化作业的灵活自定义流程。',
+    vars: {},
+    buildSteps() {
+      return [
+        step('key', { name: 'Home 键', key: '3' }),
+        step('wait', { name: '等待 1 秒', duration: 1000 }),
+        step('swipe', { name: '翻页滑动', startX: 800, startY: 1000, endX: 200, endY: 1000, duration: 300 }),
+        step('screenshot', { name: '执行记录', auto: true }),
       ]
     },
   },
@@ -85,5 +133,6 @@ export function buildTemplateSteps(templateId) {
   return {
     steps: template.buildSteps(),
     vars: { ...template.vars },
+    category: template.category || 'general',
   }
 }

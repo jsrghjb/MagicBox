@@ -1,11 +1,13 @@
-import { buildTemplateSteps } from '$/utils/automation/templates.js'
+import { AUTOMATION_TEMPLATES, buildTemplateSteps } from '$/utils/automation/templates.js'
 import { downloadScriptJson, readScriptJsonFile } from '$/utils/automation/export-import.js'
+import { useLicenseStore } from '$/store/license/index.js'
 
 /**
  * Run / record / AI / template / import / export actions for the automation editor.
  * Wraps Pinia store + ad-hoc UX (confirm, message) so two UIs can share it.
  */
 export function useAutomationEditorRuns(ctx) {
+  const licenseStore = useLicenseStore()
   function openMacroRecorder(mode) {
     if (!ctx.deviceId?.value) {
       ElMessage.warning('请先连接并选择设备！')
@@ -94,11 +96,14 @@ export function useAutomationEditorRuns(ctx) {
   }
 
   function handleTemplateApply(templateId) {
-    const { steps, vars } = buildTemplateSteps(templateId)
+    const template = AUTOMATION_TEMPLATES.find(t => t.id === templateId)
+    const { steps, vars, category } = buildTemplateSteps(templateId)
+    const scriptName = template ? template.name : window.t('automation.script.new')
     if (!ctx.currentScript.value) {
       ctx.createScript({
         deviceId: ctx.deviceId?.value || 'common',
-        name: window.t('automation.script.new'),
+        name: scriptName,
+        category: category || 'general',
         steps,
         vars,
       }).then((script) => {
@@ -110,9 +115,10 @@ export function useAutomationEditorRuns(ctx) {
       })
     }
     else {
-      ctx.currentScript.value = { ...ctx.currentScript.value, steps, vars }
+      ctx.currentScript.value = { ...ctx.currentScript.value, name: scriptName, category: category || 'general', steps, vars }
     }
     ctx.templateDialogVisible.value = false
+    ElMessage.success(`成功应用内置平台预设脚本 [${scriptName}]！`)
   }
 
   function handleAiGenerate() {
@@ -143,6 +149,11 @@ export function useAutomationEditorRuns(ctx) {
       ElMessage.warning('请选择要执行脚本的设备！')
       return
     }
+    const cat = ctx.currentScript.value?.category || 'general'
+    if (!licenseStore.checkCategoryAccess(cat)) {
+      licenseStore.openUpgradeModal(cat)
+      return
+    }
     ctx.automationStore.clearLogs()
     await ctx.automationStore.runScript({
       deviceId: ctx.deviceId.value,
@@ -156,6 +167,11 @@ export function useAutomationEditorRuns(ctx) {
     }
     if (!ctx.deviceId?.value) {
       ElMessage.warning('请选择要执行脚本的设备！')
+      return
+    }
+    const cat = ctx.currentScript.value?.category || 'general'
+    if (!licenseStore.checkCategoryAccess(cat)) {
+      licenseStore.openUpgradeModal(cat)
       return
     }
     const stepIndex = ctx.currentScript.value.steps.findIndex(step => step.id === ctx.selectedStep.value.id)
@@ -175,6 +191,11 @@ export function useAutomationEditorRuns(ctx) {
       ElMessage.warning('请选择要执行脚本的设备！')
       return
     }
+    const cat = ctx.currentScript.value?.category || 'general'
+    if (!licenseStore.checkCategoryAccess(cat)) {
+      licenseStore.openUpgradeModal(cat)
+      return
+    }
     const selectedId = ctx.selectedStepIds.value[0]
     const startIndex = ctx.currentScript.value.steps.findIndex(step => step.id === selectedId)
     if (startIndex < 0) {
@@ -192,6 +213,26 @@ export function useAutomationEditorRuns(ctx) {
     })
   }
 
+  async function handleResumeFromBreakpoint() {
+    if (!ctx.currentScript.value) {
+      return
+    }
+    if (!ctx.deviceId?.value) {
+      ElMessage.warning('请选择要执行脚本的设备！')
+      return
+    }
+    const cat = ctx.currentScript.value?.category || 'general'
+    if (!licenseStore.checkCategoryAccess(cat)) {
+      licenseStore.openUpgradeModal(cat)
+      return
+    }
+    ctx.automationStore.clearLogs()
+    await ctx.automationStore.resumeFromBreakpoint({
+      deviceId: ctx.deviceId.value,
+      script: ctx.currentScript.value,
+    })
+  }
+
   return {
     openMacroRecorder,
     handleMacroRecordConfirm,
@@ -204,5 +245,6 @@ export function useAutomationEditorRuns(ctx) {
     handleRunAll,
     handleRunSingleStep,
     handleRunSelected,
+    handleResumeFromBreakpoint,
   }
 }

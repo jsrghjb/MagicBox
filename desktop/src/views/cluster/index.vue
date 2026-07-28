@@ -252,6 +252,7 @@ import { useClusterPointer } from './hooks/use-cluster-pointer.js'
 import { useClusterVideo } from './hooks/use-cluster-video.js'
 import { automationDataStore } from '$/database/index.js'
 import { usePreferenceStore } from '$/store/preference/index.js'
+import { useLicenseStore } from '$/store/license/index.js'
 
 const loading = ref(false)
 const initialized = ref(false)
@@ -765,6 +766,21 @@ async function handleRunScript() {
   if (!script || !devices.value.length) {
     return
   }
+
+  const licenseStore = useLicenseStore()
+  const cat = script.category || 'general'
+  if (!licenseStore.checkCategoryAccess(cat)) {
+    scriptRunnerVisible.value = false
+    licenseStore.openUpgradeModal(cat)
+    return
+  }
+
+  if (devices.value.length > licenseStore.deviceLimit) {
+    scriptRunnerVisible.value = false
+    licenseStore.openUpgradeModal()
+    return
+  }
+
   scriptRunnerVisible.value = false
   isRunningAutomation.value = true
   runResults.value = []

@@ -15,7 +15,7 @@ import Dexie from 'dexie'
 const DB_NAME = 'escrcpy_local_db'
 
 // Current database version
-const DB_VERSION = 6
+const DB_VERSION = 7
 
 /**
  * Module schema configuration
@@ -40,10 +40,11 @@ const MODULE_SCHEMAS = {
    * Automation module
    * - id: Unique script identifier
    * - deviceId: Bound device id
+   * - category: Script category (general|xiaohongshu|douyin|wechat|ecommerce|custom)
    * - updatedAt: Last update time
    */
   automation: {
-    automation_scripts: 'id, deviceId, updatedAt, [deviceId+updatedAt]',
+    automation_scripts: 'id, deviceId, category, updatedAt, [deviceId+updatedAt]',
   },
 }
 

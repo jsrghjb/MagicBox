@@ -67,6 +67,7 @@ export function useAutomationScripts(deviceIdRef) {
     const dId = data.deviceId || getDeviceId() || 'common'
     const rawData = JSON.parse(
       JSON.stringify({
+        category: 'general',
         ...data,
         deviceId: dId,
       }),

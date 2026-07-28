@@ -134,6 +134,8 @@ export function openFloatControl(device) {
 
 export async function removeDevices(...devices) {
   const storeDevices = { ...(window.$preload.store.get('device') || {}) }
+  const removedIds = window.$preload.store.get('removedDeviceIds') || []
+  const newRemovedIds = [...removedIds]
 
   for (const device of devices) {
     const id = device?.id ?? device
@@ -148,8 +150,12 @@ export async function removeDevices(...devices) {
         }
       }
       delete storeDevices[id]
+      if (!newRemovedIds.includes(id)) {
+        newRemovedIds.push(id)
+      }
     }
   }
 
   window.$preload.store.set('device', storeDevices)
+  window.$preload.store.set('removedDeviceIds', newRemovedIds)
 }

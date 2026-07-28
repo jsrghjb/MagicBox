@@ -1,4 +1,3 @@
-import { defaultsDeep, keyBy } from 'lodash-es'
 import { deviceStatus as deviceStatusDict } from '$/dicts/device/index.js'
 
 /**
@@ -11,8 +10,9 @@ export function getDeviceName(device) {
 /**
  * Get device remark
  */
-export function getRemark(deviceId) {
-  const value = window.$preload.store.get('device')?.[deviceId]?.remark
+export function getRemark(deviceId, serialNo) {
+  const store = window.$preload.store.get('device') || {}
+  const value = store[deviceId]?.remark || (serialNo ? store[serialNo]?.remark : null)
   return value
 }
 
@@ -33,16 +33,19 @@ export function getHistoryDevices() {
  * Get currently connected devices
  */
 export async function getCurrentDevices() {
-  const devices = await window.$preload.adb.getDeviceList() || []
+  const devices = (await window.$preload.adb.getDeviceList()) || []
 
-  return devices.map(device => ({
-    ...device,
-    id: device.id,
-    status: device.type,
-    name: getDeviceName(device),
-    wifi: ([':', '_adb-tls-connect']).some(item => device.id.includes(item)),
-    remark: getRemark(device.id),
-  }))
+  return devices.map((device) => {
+    const remark = getRemark(device.id, device.serialNo)
+    return {
+      ...device,
+      id: device.id,
+      status: device.type,
+      name: getDeviceName(device),
+      wifi: ([':', '_adb-tls-connect']).some(item => device.id.includes(item)),
+      remark,
+    }
+  })
 }
 
 export const deviceSortModel = deviceStatusDict.reduce((obj, item, index) => {
@@ -51,19 +54,47 @@ export const deviceSortModel = deviceStatusDict.reduce((obj, item, index) => {
 }, {})
 
 /**
- * Merge history and current device lists
+ * Merge history and current device lists by physical hardware serialNo
  * @param {Array} historyDevices - History devices list
  * @param {Array} currentDevices - Current devices list
  * @returns {Array} Merged device list
  */
 export function mergeDevices(historyDevices, currentDevices) {
-  // Merge device lists: current devices take precedence; history devices as defaults
-  const historyDeviceMap = keyBy(historyDevices, 'id')
-  const currentDeviceMap = keyBy(currentDevices, 'id')
-  const mergedDeviceList = Object.values(defaultsDeep(currentDeviceMap, historyDeviceMap))
+  const mergedMap = new Map()
 
-  // Sort by device status
-  const sortedDeviceList = mergedDeviceList.sort((a, b) => deviceSortModel[a.status] - deviceSortModel[b.status])
+  // 1. Current active devices take highest priority
+  currentDevices.forEach((curr) => {
+    const key = curr.serialNo || curr.id
+    mergedMap.set(key, { ...curr })
+  })
+
+  // 2. Merge history records by serialNo
+  historyDevices.forEach((hist) => {
+    const key = hist.serialNo || hist.id
+    if (mergedMap.has(key)) {
+      const active = mergedMap.get(key)
+      mergedMap.set(key, {
+        ...hist,
+        ...active,
+        historyIps: [...new Set([...(hist.historyIps || []), hist.id, active.id])].filter(Boolean),
+        remark: active.remark || hist.remark,
+      })
+    }
+    else {
+      mergedMap.set(key, {
+        ...hist,
+        status: 'offline',
+        type: 'offline',
+      })
+    }
+  })
+
+  const mergedDeviceList = [...mergedMap.values()]
+
+  // Sort by device status (active device first)
+  const sortedDeviceList = mergedDeviceList.sort(
+    (a, b) => (deviceSortModel[a.status] ?? 99) - (deviceSortModel[b.status] ?? 99),
+  )
 
   return sortedDeviceList
 }
@@ -72,13 +103,28 @@ export function mergeDevices(historyDevices, currentDevices) {
  * Save device information to store
  */
 export function saveDevicesToStore(devices) {
+  const removedIds = window.$preload.store.get('removedDeviceIds') || []
+
   const cleanedDevices = devices
     .filter(device => !['unauthorized'].includes(device.status))
+    .filter((device) => {
+      const key = device.id || device.serialNo
+      return !removedIds.includes(key) && !removedIds.includes(device.serialNo)
+    })
     .map(device => ({
       ...device,
       status: 'offline',
       type: 'offline',
     }))
 
-  window.$preload.store.set('device', keyBy(cleanedDevices, 'id'))
+  const storeMap = {}
+  cleanedDevices.forEach((dev) => {
+    const key = dev.id || dev.serialNo
+    storeMap[key] = dev
+    if (dev.serialNo && dev.serialNo !== dev.id) {
+      storeMap[dev.serialNo] = dev
+    }
+  })
+
+  window.$preload.store.set('device', storeMap)
 }

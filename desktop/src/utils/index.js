@@ -188,6 +188,14 @@ export function toPlainValue(value) {
     return value
   }
 
+  if (value instanceof Date) {
+    return value.getTime()
+  }
+
+  if (value instanceof RegExp) {
+    return value.toString()
+  }
+
   const plainValue = {}
 
   for (const [key, nestedValue] of Object.entries(value)) {

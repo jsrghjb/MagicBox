@@ -52,9 +52,35 @@
         </nav>
       </div>
 
-      <!-- Bottom: version (expanded only) -->
-      <div v-if="!collapsed" class="text-center text-xs text-gray-400 py-2 overflow-hidden">
-        v{{ version }}
+      <!-- Bottom: License Tier Badge & Version -->
+      <div class="mt-auto pt-2 border-t border-gray-200/60 dark:border-gray-800/60 overflow-hidden flex flex-col items-center gap-1.5 app-region-no-drag">
+        <button
+          class="w-full rounded-lg px-2 py-2 flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-gradient-to-r text-xs font-bold shadow-sm text-center"
+          :class="[
+            licenseStore.isTeam
+              ? 'from-amber-500/15 to-amber-600/15 text-amber-600 dark:text-amber-400 border border-amber-400/40 hover:border-amber-400'
+              : licenseStore.isPersonal
+                ? 'from-indigo-500/15 to-blue-600/15 text-indigo-600 dark:text-indigo-400 border border-indigo-400/40 hover:border-indigo-400'
+                : 'from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300/40 dark:border-gray-700 hover:border-primary-400',
+          ]"
+          :title="licenseStore.isTeam ? '已激活：团队旗舰版' : licenseStore.isPersonal ? '已激活：个人专业版' : '当前为免费体验版，点击升级套餐'"
+          @click="licenseStore.openUpgradeModal()"
+        >
+          <i
+            class="text-base flex-none"
+            :class="licenseStore.isTeam ? 'i-bi-award-fill text-amber-500' : licenseStore.isPersonal ? 'i-bi-person-badge-fill text-indigo-500' : 'i-bi-lightning-charge-fill text-gray-400'"
+          ></i>
+          <span v-if="!collapsed" class="truncate text-center">
+            {{ licenseStore.isTeam ? '团队旗舰版' : licenseStore.isPersonal ? '个人专业版' : '免费体验版' }}
+          </span>
+          <span v-if="!collapsed && licenseStore.isFree" class="text-[10px] bg-primary-500 text-white px-1.5 py-0.5 rounded-full flex-none font-normal ml-0.5">
+            升级
+          </span>
+        </button>
+
+        <div v-if="!collapsed" class="text-[10px] text-gray-400/80 tracking-tight text-center">
+          v{{ version }}
+        </div>
       </div>
 
       <!-- Floating toggle button at sidebar right edge -->
@@ -96,9 +122,17 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { version } from '/package.json'
 import AppHeader from '$/components/app-header/index.vue'
 import QuickBar from '$/components/quick-bar/index.vue'
+import { useLicenseStore } from '$/store/license/index.js'
+
+const licenseStore = useLicenseStore()
+
+onMounted(() => {
+  licenseStore.fetchStatus()
+})
 
 const router = useRouter()
 const route = useRoute()

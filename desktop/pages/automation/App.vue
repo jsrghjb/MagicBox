@@ -7,7 +7,25 @@
         class="px-2"
       >
         <template #right>
-          <div class="flex items-center gap-2 *:app-region-no-drag">
+          <div class="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-xs *:app-region-no-drag">
+            <!-- 居右展示各种平台分类 (不换行) -->
+            <div class="flex items-center gap-1 bg-gray-100/80 dark:bg-gray-800/80 p-1 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
+              <button
+                v-for="cat in categories"
+                :key="cat.id"
+                class="px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer text-xs"
+                :class="[
+                  selectedCategory === cat.id
+                    ? 'bg-primary-500 text-white font-medium shadow-sm'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200/70 dark:hover:bg-gray-700/70',
+                ]"
+                @click="handleCategoryFilterClick(cat)"
+              >
+                <span>{{ cat.label }}</span>
+                <i v-if="!licenseStore.checkCategoryAccess(cat.id)" class="i-bi-lock-fill text-[10px] text-amber-400"></i>
+              </button>
+            </div>
+
             <el-switch v-model="isDark" class="el-switch--theme">
               <template #active-action>
                 <i class="i-solar-moon-bold"></i>
@@ -20,18 +38,11 @@
         </template>
       </AppHeader>
 
-      <el-alert
-        :title="$t('automation.tips')"
-        type="info"
-        show-icon
-        class="mx-2 mb-2 flex-none"
-        :closable="true"
-      />
-
-      <div class="flex-1 min-h-0 flex overflow-hidden px-2 pb-2 gap-2">
+      <div class="flex-1 min-h-0 flex overflow-hidden px-2 pb-2 pt-2 gap-2">
         <ScriptList
           class="w-56 flex-none"
           :device-id="deviceId"
+          :category="selectedCategory"
           :current-script-id="currentScript?.id"
           :is-running="isRunning"
           @select="handleSelectScript"
@@ -45,27 +56,74 @@
         />
 
         <div class="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
-          <template v-if="currentScript">
-            <div class="flex items-center gap-3 flex-none">
-              <span class="text-sm text-gray-500 flex-none whitespace-nowrap">{{ $t('automation.script.name') }}</span>
-              <el-input
-                v-model="currentScript.name"
-                class="w-36"
-              />
-              <RunToolbar
-                class="flex-none"
-                :status="automationStore.runnerStatus"
-                :has-script="true"
-                :has-steps="Boolean(currentScript?.steps?.length)"
-                :has-selection="selectedStepIds.length > 0"
-                @run-all="handleRunAll"
-                @run-selected="handleRunSelected"
-                @pause="automationStore.pauseRun"
-                @resume="automationStore.resumeRun"
-                @stop="automationStore.stopRun"
-              />
+          <!-- 顶部操作栏与平台分类 Tabs (无论是否有选中脚本均 100% 始终显示) -->
+          <div class="flex items-center justify-between gap-3 flex-none overflow-x-auto no-scrollbar bg-gray-50/60 dark:bg-gray-900/40 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
+            <!-- 左侧: 选中脚本时的名称与控制按钮 / 未选中时的引导 -->
+            <div class="flex items-center gap-3 flex-none min-w-0">
+              <template v-if="currentScript">
+                <span class="text-sm text-gray-500 flex-none whitespace-nowrap">{{ $t('automation.script.name') }}</span>
+                <el-input
+                  v-model="currentScript.name"
+                  class="w-32 flex-none"
+                />
+                <span class="text-sm text-gray-500 flex-none whitespace-nowrap ml-1">分类</span>
+                <el-select
+                  v-model="currentScript.category"
+                  class="w-32 flex-none"
+                  placeholder="选择分类"
+                  @change="handleCategoryChange"
+                >
+                  <el-option label="通用基础" value="general" />
+                  <el-option label="🔒 小红书专区" value="xiaohongshu" />
+                  <el-option label="🔒 抖音/TikTok" value="douyin" />
+                  <el-option label="🔒 微信/视频号" value="wechat" />
+                  <el-option label="🔒 跨境电商" value="ecommerce" />
+                  <el-option label="🔒 自定义分类" value="custom" />
+                </el-select>
+                <RunToolbar
+                  class="flex-none"
+                  :status="automationStore.runnerStatus"
+                  :has-script="true"
+                  :has-steps="Boolean(currentScript?.steps?.length)"
+                  :has-selection="selectedStepIds.length > 0"
+                  :has-breakpoint="Boolean(automationStore.breakpointSnapshot)"
+                  :breakpoint-index="automationStore.breakpointSnapshot?.stepIndex ?? 0"
+                  @run-all="handleRunAll"
+                  @run-selected="handleRunSelected"
+                  @resume-breakpoint="handleResumeFromBreakpoint"
+                  @pause="automationStore.pauseRun"
+                  @resume="automationStore.resumeRun"
+                  @stop="automationStore.stopRun"
+                />
+              </template>
+              <template v-else>
+                <span class="text-xs text-gray-400 font-medium px-2 flex items-center gap-1">
+                  <i class="i-bi-info-circle text-primary-500"></i>
+                  请选择或新建自动化脚本
+                </span>
+              </template>
             </div>
 
+            <!-- 右侧: 平台分类 Tabs (在这一行的最右边，单行不换行，100% 始终显示) -->
+            <div class="flex items-center gap-1 overflow-x-auto no-scrollbar whitespace-nowrap text-xs bg-gray-100 dark:bg-gray-800 p-1 rounded-lg border border-gray-200/50 dark:border-gray-700/50 flex-none">
+              <button
+                v-for="cat in categories"
+                :key="cat.id"
+                class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer flex-none"
+                :class="[
+                  selectedCategory === cat.id
+                    ? 'bg-primary-500 text-white font-medium shadow-sm'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-700/80',
+                ]"
+                @click="handleCategoryFilterClick(cat)"
+              >
+                <span>{{ cat.label }}</span>
+                <i v-if="!licenseStore.checkCategoryAccess(cat.id)" class="i-bi-lock-fill text-[10px] text-amber-400"></i>
+              </button>
+            </div>
+          </div>
+
+          <template v-if="currentScript">
             <div class="flex-1 min-h-0 flex gap-2">
               <StepList
                 class="w-72 flex-none min-h-0"
@@ -169,6 +227,7 @@ import { useAutomationEditor } from '$/composables/use-automation-editor/index.j
 import { nextTick, onMounted, watch } from 'vue'
 import AppHeader from '$/components/app-header/index.vue'
 import { useDeviceStore } from '$/store/device/index.js'
+import { useLicenseStore } from '$/store/license/index.js'
 
 import ScriptList from './components/script-list/index.vue'
 import StepList from './components/step-list/index.vue'
@@ -182,6 +241,31 @@ import AiGenerator from './components/ai-generator/index.vue'
 import MacroRecorder from './components/macro-recorder/index.vue'
 
 const deviceStore = useDeviceStore()
+const licenseStore = useLicenseStore()
+
+const selectedCategory = ref('all')
+const categories = [
+  { id: 'all', label: '全部' },
+  { id: 'general', label: '通用基础' },
+  { id: 'xiaohongshu', label: '小红书' },
+  { id: 'douyin', label: '抖音/TikTok' },
+  { id: 'wechat', label: '微信/视频号' },
+  { id: 'ecommerce', label: '跨境电商' },
+  { id: 'custom', label: '自定义' },
+]
+
+function handleCategoryFilterClick(cat) {
+  selectedCategory.value = cat.id
+  if (cat.id !== 'all' && !licenseStore.checkCategoryAccess(cat.id)) {
+    licenseStore.openUpgradeModal(cat.id)
+  }
+}
+
+function handleCategoryChange(val) {
+  if (val && !licenseStore.checkCategoryAccess(val)) {
+    licenseStore.openUpgradeModal(val)
+  }
+}
 const {
   currentDevice,
   locale,
@@ -211,7 +295,7 @@ const editor = useAutomationEditor(deviceId)
 const { state, actions, runs } = editor
 const { scripts, currentScript, selectedStepIds, templateDialogVisible, batchDialogVisible, aiDialogVisible, recorderVisible, recorderMode, isRunning, selectedStep, automationStore } = state
 const { handleSelectScript, handleSelectStep, handleAddStep, handleRemoveStep, handleMoveStepUp, handleMoveStepDown, handleReorderSteps, handleInsertStepBefore, handleInsertStepAfter, handleUpdateStep, handleUpdateVars } = actions
-const { handleImportScript, handleExportScript, handleApplyTemplate, handleTemplateApply, handleAiGenerate, handleAiApply, handleRunAll, handleRunSingleStep, handleRunSelected } = runs
+const { handleImportScript, handleExportScript, handleApplyTemplate, handleTemplateApply, handleAiGenerate, handleAiApply, handleRunAll, handleRunSingleStep, handleRunSelected, handleResumeFromBreakpoint } = runs
 
 const isDark = computed({
   get: () => themeStore.isDark,
