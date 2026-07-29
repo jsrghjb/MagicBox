@@ -114,6 +114,8 @@ export const useAutomationStore = defineStore('app-automation', () => {
         vars: script.vars || {},
         stepIndexes,
         isResume,
+        referenceScreenWidth: script.referenceScreenWidth || 1080,
+        referenceScreenHeight: script.referenceScreenHeight || 1920,
         onLog: entry => appendLog(entry),
         onHumanIntervention: ({ deviceId: devId }) => {
           pauseRun({

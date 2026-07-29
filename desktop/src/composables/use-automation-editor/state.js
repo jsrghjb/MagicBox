@@ -38,11 +38,13 @@ export function useAutomationEditorState(deviceIdRef) {
       name: currentScript.value.name,
       steps: currentScript.value.steps,
       vars: currentScript.value.vars,
+      referenceScreenWidth: currentScript.value.referenceScreenWidth,
+      referenceScreenHeight: currentScript.value.referenceScreenHeight,
     })
   }, 500)
 
   watch(
-    () => [currentScript.value?.name, currentScript.value?.steps, currentScript.value?.vars],
+    () => [currentScript.value?.name, currentScript.value?.steps, currentScript.value?.vars, currentScript.value?.referenceScreenWidth, currentScript.value?.referenceScreenHeight],
     () => debouncedSave(),
     { deep: true },
   )

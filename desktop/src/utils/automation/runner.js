@@ -757,6 +757,8 @@ export function createRunner() {
     onStepEnd,
     onLog,
     onHumanIntervention,
+    referenceScreenWidth = 1080,
+    referenceScreenHeight = 1920,
   } = {}) {
     if (!deviceId) {
       throw new Error('NO_DEVICE')
@@ -774,6 +776,27 @@ export function createRunner() {
       screenSize = await adb.getScreenSize(deviceId)
     }
     catch {}
+
+    // Compute coordinate scale factors for cross-device resolution adaptation
+    let scaleX = 1
+    let scaleY = 1
+    if (screenSize && referenceScreenWidth && referenceScreenHeight) {
+      scaleX = screenSize.width / referenceScreenWidth
+      scaleY = screenSize.height / referenceScreenHeight
+      if (scaleX !== 1 || scaleY !== 1) {
+        onLog?.({
+          level: 'info',
+          message: `📐 坐标缩放：脚本参考分辨率 ${referenceScreenWidth}×${referenceScreenHeight} → 设备实际分辨率 ${screenSize.width}×${screenSize.height} (X×${scaleX.toFixed(3)}, Y×${scaleY.toFixed(3)})`,
+        })
+      }
+    }
+
+    function scaleCoord(value, axis) {
+      if (value == null)
+        return value
+      const scale = axis === 'x' ? scaleX : scaleY
+      return Math.round(value * scale)
+    }
 
     controller.abortController = new AbortController()
     controller.signal = controller.abortController.signal
@@ -1125,28 +1148,66 @@ export function createRunner() {
 
           const loopStep = { ...step }
 
-          // Perform cross-device resolution coordinate mapping using percentages
+          // Perform cross-device resolution coordinate mapping
           if (screenSize) {
             const targetW = screenSize.width
             const targetH = screenSize.height
+            const hasPercentCoords = loopStep.xPercent != null || loopStep.yPercent != null
+              || loopStep.startXPercent != null || loopStep.startYPercent != null
+              || loopStep.endXPercent != null || loopStep.endYPercent != null
 
-            if (loopStep.xPercent != null) {
-              loopStep.x = Math.round(loopStep.xPercent * targetW)
+            if (hasPercentCoords) {
+              // Priority 1: Percentage-based mapping (recorded with explicit percent fields)
+              if (loopStep.xPercent != null) {
+                loopStep.x = Math.round(loopStep.xPercent * targetW)
+              }
+              if (loopStep.yPercent != null) {
+                loopStep.y = Math.round(loopStep.yPercent * targetH)
+              }
+              if (loopStep.startXPercent != null) {
+                loopStep.startX = Math.round(loopStep.startXPercent * targetW)
+              }
+              if (loopStep.startYPercent != null) {
+                loopStep.startY = Math.round(loopStep.startYPercent * targetH)
+              }
+              if (loopStep.endXPercent != null) {
+                loopStep.endX = Math.round(loopStep.endXPercent * targetW)
+              }
+              if (loopStep.endYPercent != null) {
+                loopStep.endY = Math.round(loopStep.endYPercent * targetH)
+              }
             }
-            if (loopStep.yPercent != null) {
-              loopStep.y = Math.round(loopStep.yPercent * targetH)
-            }
-            if (loopStep.startXPercent != null) {
-              loopStep.startX = Math.round(loopStep.startXPercent * targetW)
-            }
-            if (loopStep.startYPercent != null) {
-              loopStep.startY = Math.round(loopStep.startYPercent * targetH)
-            }
-            if (loopStep.endXPercent != null) {
-              loopStep.endX = Math.round(loopStep.endXPercent * targetW)
-            }
-            if (loopStep.endYPercent != null) {
-              loopStep.endY = Math.round(loopStep.endYPercent * targetH)
+            else if (scaleX !== 1 || scaleY !== 1) {
+              // Priority 2: Scale absolute coordinates from reference resolution to target resolution
+              if (loopStep.x != null) {
+                loopStep.x = scaleCoord(loopStep.x, 'x')
+              }
+              if (loopStep.y != null) {
+                loopStep.y = scaleCoord(loopStep.y, 'y')
+              }
+              if (loopStep.startX != null) {
+                loopStep.startX = scaleCoord(loopStep.startX, 'x')
+              }
+              if (loopStep.startY != null) {
+                loopStep.startY = scaleCoord(loopStep.startY, 'y')
+              }
+              if (loopStep.endX != null) {
+                loopStep.endX = scaleCoord(loopStep.endX, 'x')
+              }
+              if (loopStep.endY != null) {
+                loopStep.endY = scaleCoord(loopStep.endY, 'y')
+              }
+              // Also scale tapZone coordinates if present
+              if (loopStep.tapZone) {
+                if (loopStep.tapZone.x1 != null)
+                  loopStep.tapZone.x1 = scaleCoord(loopStep.tapZone.x1, 'x')
+                if (loopStep.tapZone.y1 != null)
+                  loopStep.tapZone.y1 = scaleCoord(loopStep.tapZone.y1, 'y')
+                if (loopStep.tapZone.x2 != null)
+                  loopStep.tapZone.x2 = scaleCoord(loopStep.tapZone.x2, 'x')
+                if (loopStep.tapZone.y2 != null)
+                  loopStep.tapZone.y2 = scaleCoord(loopStep.tapZone.y2, 'y')
+              }
             }
           }
 
@@ -1374,6 +1435,8 @@ export async function runAutomationMatrix({
   onTaskStart,
   onTaskEnd,
   concurrencyLimit,
+  referenceScreenWidth = 1080,
+  referenceScreenHeight = 1920,
 } = {}) {
   const finalSteps = steps || script?.steps || []
   const deviceList = (devices || []).map(item => (typeof item === 'string' ? { id: item } : item)).filter(Boolean)
@@ -1404,6 +1467,8 @@ export async function runAutomationMatrix({
             deviceId,
             steps: finalSteps,
             vars: { ...baseVars, ...rowVars },
+            referenceScreenWidth,
+            referenceScreenHeight,
             onLog: entry => onDeviceLog?.(deviceId, entry),
             onHumanIntervention: async ({ currentActivity }) => {
               onDeviceLog?.(deviceId, {

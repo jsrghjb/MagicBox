@@ -183,6 +183,8 @@ async function handleAutomationSchedule(devices, context) {
       steps: script.steps || [],
       baseVars: script.vars || {},
       concurrencyLimit: config.concurrency,
+      referenceScreenWidth: script.referenceScreenWidth || 1080,
+      referenceScreenHeight: script.referenceScreenHeight || 1920,
     })
   }
   finally {
@@ -275,6 +277,8 @@ async function handleScriptPicked() {
       steps: script.steps || [],
       baseVars: script.vars || {},
       concurrencyLimit: concurrency.value,
+      referenceScreenWidth: script.referenceScreenWidth || 1080,
+      referenceScreenHeight: script.referenceScreenHeight || 1920,
       onTaskEnd: (item) => {
         results.value.push(item)
       },

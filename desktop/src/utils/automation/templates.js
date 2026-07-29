@@ -124,15 +124,20 @@ export const AUTOMATION_TEMPLATES = [
   },
 ]
 
+export const TEMPLATE_REFERENCE_WIDTH = 1080
+export const TEMPLATE_REFERENCE_HEIGHT = 1920
+
 export function buildTemplateSteps(templateId) {
   const template = AUTOMATION_TEMPLATES.find(item => item.id === templateId)
   if (!template) {
-    return { steps: [], vars: {} }
+    return { steps: [], vars: {}, referenceScreenWidth: TEMPLATE_REFERENCE_WIDTH, referenceScreenHeight: TEMPLATE_REFERENCE_HEIGHT }
   }
 
   return {
     steps: template.buildSteps(),
     vars: { ...template.vars },
     category: template.category || 'general',
+    referenceScreenWidth: TEMPLATE_REFERENCE_WIDTH,
+    referenceScreenHeight: TEMPLATE_REFERENCE_HEIGHT,
   }
 }

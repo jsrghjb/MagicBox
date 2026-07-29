@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 
-export const AUTOMATION_SCHEMA_VERSION = 1
+export const AUTOMATION_SCHEMA_VERSION = 2
 
 export function exportScript(script) {
   return {
@@ -8,6 +8,8 @@ export function exportScript(script) {
     name: script.name,
     steps: script.steps || [],
     vars: script.vars || {},
+    referenceScreenWidth: script.referenceScreenWidth || 1080,
+    referenceScreenHeight: script.referenceScreenHeight || 1920,
     exportedAt: Date.now(),
   }
 }
@@ -28,6 +30,8 @@ export function parseImportedScript(data) {
       id: step.id || nanoid(),
     })),
     vars: data.vars || {},
+    referenceScreenWidth: data.referenceScreenWidth || 1080,
+    referenceScreenHeight: data.referenceScreenHeight || 1920,
     schemaVersion: data.schemaVersion || AUTOMATION_SCHEMA_VERSION,
   }
 }

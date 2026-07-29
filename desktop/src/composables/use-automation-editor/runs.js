@@ -17,11 +17,14 @@ export function useAutomationEditorRuns(ctx) {
     ctx.recorderVisible.value = true
   }
 
-  async function handleMacroRecordConfirm(steps) {
+  async function handleMacroRecordConfirm(steps, deviceResolution) {
     ctx.recorderVisible.value = false
     if (!steps?.length) {
       return
     }
+
+    const refWidth = deviceResolution?.width || 1080
+    const refHeight = deviceResolution?.height || 1920
 
     if (ctx.recorderMode.value === 'new') {
       try {
@@ -30,6 +33,8 @@ export function useAutomationEditorRuns(ctx) {
           name: `录制宏_${new Date().toLocaleTimeString().replace(/:/g, '-')}`,
           steps,
           vars: {},
+          referenceScreenWidth: refWidth,
+          referenceScreenHeight: refHeight,
         })
         ctx.currentScript.value = { ...script }
         ctx.automationStore.selectedStepId = script.steps[0]?.id || null
@@ -43,6 +48,10 @@ export function useAutomationEditorRuns(ctx) {
     else if (ctx.recorderMode.value === 'append' && ctx.currentScript.value) {
       const currentSteps = ctx.currentScript.value.steps || []
       ctx.currentScript.value.steps = [...currentSteps, ...steps]
+      if (refWidth && refHeight) {
+        ctx.currentScript.value.referenceScreenWidth = refWidth
+        ctx.currentScript.value.referenceScreenHeight = refHeight
+      }
       ElMessage.success(`成功追加 ${steps.length} 个步骤到当前脚本！`)
     }
   }
@@ -62,6 +71,8 @@ export function useAutomationEditorRuns(ctx) {
           name: data.name,
           steps: data.steps,
           vars: data.vars,
+          referenceScreenWidth: data.referenceScreenWidth || 1080,
+          referenceScreenHeight: data.referenceScreenHeight || 1920,
         })
         ctx.currentScript.value = { ...script }
       }
@@ -71,6 +82,8 @@ export function useAutomationEditorRuns(ctx) {
           name: data.name,
           steps: data.steps,
           vars: data.vars,
+          referenceScreenWidth: data.referenceScreenWidth || 1080,
+          referenceScreenHeight: data.referenceScreenHeight || 1920,
         }
         await ctx.debouncedSave()
       }
@@ -97,7 +110,7 @@ export function useAutomationEditorRuns(ctx) {
 
   function handleTemplateApply(templateId) {
     const template = AUTOMATION_TEMPLATES.find(t => t.id === templateId)
-    const { steps, vars, category } = buildTemplateSteps(templateId)
+    const { steps, vars, category, referenceScreenWidth, referenceScreenHeight } = buildTemplateSteps(templateId)
     const scriptName = template ? template.name : window.t('automation.script.new')
     if (!ctx.currentScript.value) {
       ctx.createScript({
@@ -106,6 +119,8 @@ export function useAutomationEditorRuns(ctx) {
         category: category || 'general',
         steps,
         vars,
+        referenceScreenWidth,
+        referenceScreenHeight,
       }).then((script) => {
         ctx.currentScript.value = { ...script }
         ctx.automationStore.selectedStepId = script.steps[0]?.id || null
@@ -115,7 +130,7 @@ export function useAutomationEditorRuns(ctx) {
       })
     }
     else {
-      ctx.currentScript.value = { ...ctx.currentScript.value, name: scriptName, category: category || 'general', steps, vars }
+      ctx.currentScript.value = { ...ctx.currentScript.value, name: scriptName, category: category || 'general', steps, vars, referenceScreenWidth, referenceScreenHeight }
     }
     ctx.templateDialogVisible.value = false
     ElMessage.success(`成功应用内置平台预设脚本 [${scriptName}]！`)
@@ -133,6 +148,8 @@ export function useAutomationEditorRuns(ctx) {
         name: generated.name || `${window.t('automation.script.new')} ${ctx.scripts.value.length + 1}`,
         steps: generated.steps,
         vars: generated.vars || {},
+        referenceScreenWidth: generated.referenceScreenWidth || 1080,
+        referenceScreenHeight: generated.referenceScreenHeight || 1920,
       })
       ctx.currentScript.value = { ...script }
       ctx.automationStore.selectedStepId = script.steps[0]?.id || null

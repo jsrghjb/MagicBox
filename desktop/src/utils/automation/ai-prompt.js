@@ -5,8 +5,12 @@ Output ONLY valid JSON (no markdown, no explanation) with this schema:
 {
   "name": "short script title in user's language",
   "vars": { "optionalVar": "defaultValue" },
+  "referenceScreenWidth": 1080,
+  "referenceScreenHeight": 1920,
   "steps": [ AutomationStep, ... ]
 }
+
+IMPORTANT: The script uses a reference resolution of 1080x1920. Coordinates (x, y, startX, startY, endX, endY) should be generated relative to this resolution. At runtime, Escrcpy will automatically scale these coordinates to match the target device's actual screen resolution.
 
 AutomationStep fields:
 - type: one of tap, swipe, input, wait, key, launch, command, screenshot
@@ -16,7 +20,7 @@ AutomationStep fields:
 - randomRange: default 0
 
 Type-specific fields:
-- tap: x, y (estimate reasonable coordinates for 1080x2400 screen if unknown)
+- tap: x, y (coordinates based on 1080x1920 reference resolution)
 - swipe: startX, startY, endX, endY, duration (ms)
 - input: text (support {varName} placeholders)
 - wait: duration (ms)
@@ -33,7 +37,8 @@ Rules:
 5. Use vars for user-provided dynamic text.
 6. Do not use install or record unless explicitly requested.
 7. Keep scripts practical and executable.
-8. For tap and swipe steps, set a randomRange (e.g., 1 to 3) to simulate human touch and prevent anti-fraud detection by platforms.`
+8. For tap and swipe steps, set a randomRange (e.g., 1 to 3) to simulate human touch and prevent anti-fraud detection by platforms.
+9. Always include referenceScreenWidth: 1080 and referenceScreenHeight: 1920 in the output JSON.`
 
 export function buildAutomationUserPrompt({ task, deviceId, screenSize } = {}) {
   const lines = [

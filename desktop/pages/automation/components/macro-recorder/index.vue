@@ -128,6 +128,7 @@ const lastTouchTime = ref(0)
 const startTouchPos = ref(null)
 const startTouchTime = ref(0)
 const currentDelay = ref(0)
+const deviceResolution = ref({ width: 1080, height: 1920 })
 
 const {
   setCanvasRef,
@@ -206,6 +207,9 @@ onUnmounted(() => {
 })
 
 function onTouch(payload) {
+  if (payload.deviceWidth && payload.deviceHeight) {
+    deviceResolution.value = { width: payload.deviceWidth, height: payload.deviceHeight }
+  }
   if (payload.action === 'down') {
     const now = Date.now()
     currentDelay.value = lastTouchTime.value ? now - lastTouchTime.value : 0
@@ -391,7 +395,7 @@ function handleConfirm() {
     clearTimeout(scrollSession.value.timeoutId)
     flushScrollSession()
   }
-  emit('confirm', recordedSteps.value)
+  emit('confirm', recordedSteps.value, deviceResolution.value)
 }
 </script>
 

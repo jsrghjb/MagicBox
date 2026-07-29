@@ -25,6 +25,12 @@ const automationSchema = {
   vars: {
     type: FieldTypes.OBJECT,
   },
+  referenceScreenWidth: {
+    type: FieldTypes.NUMBER,
+  },
+  referenceScreenHeight: {
+    type: FieldTypes.NUMBER,
+  },
 }
 
 class AutomationStore extends BaseStore {
@@ -43,7 +49,9 @@ class AutomationStore extends BaseStore {
       id: data.id || nanoid(),
       steps: [],
       vars: {},
-      schemaVersion: 1,
+      schemaVersion: 2,
+      referenceScreenWidth: data.referenceScreenWidth || 1080,
+      referenceScreenHeight: data.referenceScreenHeight || 1920,
       createdAt: now,
       updatedAt: now,
       ...data,
