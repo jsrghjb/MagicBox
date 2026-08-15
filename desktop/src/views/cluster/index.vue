@@ -125,7 +125,15 @@
             @click.stop="setAsMaster(item.serial)"
           >
             <span class="truncate pr-2">{{ getDeviceName(item.serial) }}</span>
-            <span class="flex-none">{{ getDeviceBySerial(item.serial)?.width }}×{{ getDeviceBySerial(item.serial)?.height }}</span>
+            <div class="flex-none flex items-center gap-1">
+              <span>{{ getDeviceBySerial(item.serial)?.width }}×{{ getDeviceBySerial(item.serial)?.height }}</span>
+              <el-tooltip content="独立窗口放大" placement="bottom">
+                <i
+                  class="i-bi-arrows-fullscreen cursor-pointer hover:text-primary transition-colors"
+                  @click.stop="openStandalone(item.serial)"
+                />
+              </el-tooltip>
+            </div>
           </div>
 
           <div class="video-container absolute inset-0 top-5 overflow-hidden">
@@ -141,12 +149,29 @@
 
             <div
               v-if="!isDeviceRendered(item.serial)"
-              class="absolute inset-0 z-2 flex flex-col items-center justify-center gap-2 bg-black/60 pointer-events-none"
+              class="absolute inset-0 z-2 flex flex-col items-center justify-center gap-2 bg-black/70 pointer-events-none"
             >
-              <el-icon class="text-4xl text-white animate-spin">
-                <Loading />
-              </el-icon>
-              <span class="text-xs text-white/80">{{ $t('common.loading') }}</span>
+              <template v-if="getPipelineError(item.serial)">
+                <el-icon class="text-4xl text-red-400">
+                  <Warning />
+                </el-icon>
+                <span class="text-xs text-red-300 px-3 text-center leading-relaxed">{{ getPipelineError(item.serial) }}</span>
+              </template>
+              <template v-else-if="!VIDEO_DECODER_SUPPORTED">
+                <el-icon class="text-4xl text-yellow-400">
+                  <Warning />
+                </el-icon>
+                <span class="text-xs text-yellow-300 px-3 text-center">当前浏览器/WebView 不支持 WebCodecs VideoDecoder</span>
+                <span class="text-xs text-yellow-400/70 px-3 text-center">请升级 Electron/Chromium 版本</span>
+              </template>
+              <template v-else>
+                <el-icon class="text-4xl text-white animate-spin">
+                  <Loading />
+                </el-icon>
+                <span class="text-xs text-white/80">{{ $t('common.loading') }}</span>
+                <span v-if="!getStreamSize(item.serial)" class="text-xs text-white/40">等待视频流数据...</span>
+                <span v-else class="text-xs text-white/40">解码配置中 ({{ getStreamSize(item.serial).width }}×{{ getStreamSize(item.serial).height }})</span>
+              </template>
             </div>
           </div>
           <div
@@ -242,7 +267,7 @@
 </template>
 
 <script setup>
-import { Loading, Refresh } from '@element-plus/icons-vue'
+import { Loading, Refresh, Warning } from '@element-plus/icons-vue'
 import { computed, nextTick, onActivated, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useDeviceStore } from '$/store/device/index.js'
@@ -260,6 +285,7 @@ const devices = ref([])
 const masterSerial = ref(null)
 const deviceStore = useDeviceStore()
 const preferenceStore = usePreferenceStore()
+const licenseStore = useLicenseStore()
 const layoutAreaRef = ref(null)
 const layoutRevision = ref(0)
 
@@ -271,14 +297,29 @@ watch(
   { deep: true },
 )
 
+// 硬防线：无论主进程返回什么，渲染进程自动截断到许可证限制
+watch(
+  () => devices.value.length,
+  () => {
+    const limit = licenseStore.deviceLimit
+    if (devices.value.length > limit) {
+      console.warn(`[cluster] 硬防线: 设备数 ${devices.value.length} > 限制 ${limit}，自动截断`)
+      devices.value = devices.value.slice(0, limit)
+    }
+  },
+)
+
 const {
+  VIDEO_DECODER_SUPPORTED,
   renderedSerials,
-  setFrameSession,
+  pipelineErrors,
+  acceptSession,
   setCanvasRef,
   initDevice,
   onVideoFrame,
   destroy: destroyVideo,
   isDeviceRendered,
+  getPipelineError,
   getCanvas,
   getStreamSize,
 } = useClusterVideo()
@@ -609,7 +650,11 @@ function mergeClusterDevices(clusterDevices) {
   })
 }
 
+let _frameCount = 0
 function onVideoFrameEvent(_event, payload) {
+  _frameCount++
+  if (_frameCount <= 5 || _frameCount % 100 === 0)
+    console.log(`[cluster] IPC frame #${_frameCount}, serial=${payload.serial}, config=${!!payload.config}, dataLen=${payload.data?.length || 0}`)
   onVideoFrame(payload)
 }
 
@@ -617,11 +662,20 @@ async function refreshDevices() {
   loading.value = true
   layoutRevision.value += 1
 
+  // 确保许可证状态已同步
+  await licenseStore.fetchStatus()
+  console.log('[cluster] license:', { tier: licenseStore.tier, deviceLimit: licenseStore.deviceLimit, activated: licenseStore.activated })
+
   try {
     if (initialized.value)
       await stopAll(false)
 
     const result = await window.$preload.ipcRenderer.invoke('cluster-control:initialize')
+    console.log('[cluster] initialize result:', { maxDevices: result?.maxDevices, deviceCount: result?.devices?.length, session: result?.session })
+
+    // 仅更新 session 号，不销毁 config 帧已创建的管线
+    if (result?.session != null)
+      acceptSession(result.session)
 
     if (!result?.success) {
       ElMessage.error(result?.error || window.t('cluster.noDevices'))
@@ -635,11 +689,17 @@ async function refreshDevices() {
       return
     }
 
+    // 许可证设备数量限制
+    const limit = result.maxDevices ?? licenseStore.deviceLimit
+    console.log('[cluster] limit check:', { limit, deviceCount: result.devices.length, willTruncate: result.devices.length > limit })
+    if (result.devices.length > limit) {
+      ElMessage.warning(`当前版本仅支持 ${limit} 台设备同时投屏，已自动截取前 ${limit} 台。检测到 ${result.devices.length} 台设备，请升级许可证以解锁更多。`)
+      licenseStore.openUpgradeModal()
+      result.devices = result.devices.slice(0, limit)
+    }
+
     await deviceStore.getList()
     devices.value = mergeClusterDevices(result.devices)
-
-    if (result.session != null)
-      setFrameSession(result.session)
 
     initialized.value = true
     await nextTick()
@@ -670,6 +730,21 @@ async function setAsMaster(serial) {
     console.error('[cluster] setMaster:', error)
   }
   ElMessage.success(`${window.t('cluster.setMasterSuccess')}: ${getDeviceName(serial)}`)
+}
+
+async function openStandalone(serial) {
+  const device = getDeviceBySerial(serial)
+  try {
+    await window.$preload.ipcRenderer.invoke('cluster-control:openStandalone', {
+      serial,
+      model: device?.model || serial,
+    })
+    ElMessage.success(`已打开独立窗口: ${getDeviceName(serial)}`)
+  }
+  catch (error) {
+    console.error('[cluster] openStandalone:', error)
+    ElMessage.error(`打开失败: ${error.message}`)
+  }
 }
 
 async function clearMaster() {
@@ -713,6 +788,7 @@ onActivated(async () => {
 
 onUnmounted(() => {
   window.$preload.ipcRenderer.removeListener('cluster-control:frame', onVideoFrameEvent)
+  window.$preload.ipcRenderer.invoke('cluster-control:closeStandalone').catch(() => {})
   if (initialized.value)
     stopAll(false)
 })
@@ -767,7 +843,6 @@ async function handleRunScript() {
     return
   }
 
-  const licenseStore = useLicenseStore()
   const cat = script.category || 'general'
   if (!licenseStore.checkCategoryAccess(cat)) {
     scriptRunnerVisible.value = false

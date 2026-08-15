@@ -177,11 +177,13 @@ import DevicePopover from './components/device-popover/index.vue'
 
 import { getDictLabel } from '$/dicts/helper'
 import { deviceStatus } from '$/dicts/index.js'
+import { useLicenseStore } from '$/store/license/index.js'
 
 const MIRROR_START_INTERVAL = 1000
 
 const deviceStore = useDeviceStore()
 const preferenceStore = usePreferenceStore()
+const licenseStore = useLicenseStore()
 
 const loading = ref(false)
 const autoMirrorConcurrencyLimit = Number(window.$preload.store.get('common.concurrencyLimit') ?? 5)
@@ -233,7 +235,9 @@ async function getDeviceData(options = {}) {
   }
 
   try {
-    await deviceStore.getList()
+    // 确保许可证状态已同步
+    await licenseStore.fetchStatus()
+    await deviceStore.getList(licenseStore.deviceLimit)
   }
   catch (error) {
     const message = error?.message || error?.cause?.message || ''

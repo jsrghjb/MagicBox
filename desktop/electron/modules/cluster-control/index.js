@@ -6,7 +6,7 @@
 import { ipcMain } from 'electron'
 import { spawn } from 'node:child_process'
 import net from 'node:net'
-import { initializeCluster, stopScrcpyInstances } from '@escrcpy/cluster-control'
+import { getAdbDevices, startScrcpyInstances, stopScrcpyInstances } from '@escrcpy/cluster-control'
 import { getEffectiveMaxVideoSize } from '@escrcpy/cluster-control/preference-video-config.js'
 import { H264StreamParser } from '@escrcpy/cluster-control/h264-stream.js'
 import {
@@ -15,9 +15,12 @@ import {
   serializeInjectTouchEvent,
   touchActionFromName,
 } from '@escrcpy/cluster-control/scrcpy-control.js'
-import { getAdbPath } from '$electron/configs/which/index.js'
+import { getAdbPath, getScrcpyPath } from '$electron/configs/which/index.js'
 import { extraResolve } from '$electron/process/resources.js'
 import { trySend } from '$electron/helpers/index.js'
+import { getSecret } from '$electron/helpers/secure-store/index.js'
+import { getMachineId } from '../license/machine.js'
+import { parseAndVerifyKey } from '../license/index.js'
 import {
   assertClusterVideoEnabled,
   getDeviceVideoServerOptions,
@@ -53,6 +56,10 @@ const deviceStreamSizes = new Map()
 /** @type {string | null} */
 let currentMasterSerial = null
 let clusterSession = 0
+
+/** 帧率节流：多设备场景下限制 IPC 帧传输频率 */
+const frameThrottleMap = new Map() // serial -> { lastTime, minIntervalMs }
+const configSent = new Set()
 
 /** stdout 管道断开时 console 会抛 EPIPE，避免未捕获异常死循环弹窗 */
 function safeLog(level, ...args) {
@@ -103,7 +110,30 @@ ipcMain.handle('cluster-control:initialize', async (event, config = {}) => {
   const session = clusterSession
 
   try {
-    const { devices, instances } = await initializeCluster({
+    // 1. 许可证设备数量限制
+    const machineId = await getMachineId()
+    const savedKey = getSecret('license_key') || ''
+    const license = parseAndVerifyKey(savedKey, machineId)
+    const maxDevices = license.deviceLimit || 2
+    safeLog('info', `[cluster-control] 许可证: tier=${license.tier}, deviceLimit=${maxDevices}`)
+
+    // 2. 先探测设备，再根据许可证限制数量
+    const allDevices = await getAdbDevices({ adbPath: getAdbPath() })
+    if (allDevices.length === 0) {
+      safeLog('warn', '[cluster-control] 未探测到任何在线 ADB 设备')
+      return { success: true, session, maxDevices, devices: [] }
+    }
+
+    safeLog('info', `[cluster-control] 探测到 ${allDevices.length} 台设备，许可证限制 ${maxDevices} 台`)
+
+    const limitedDevices = allDevices.slice(0, maxDevices)
+    const exceededCount = allDevices.length - limitedDevices.length
+    if (exceededCount > 0) {
+      safeLog('warn', `[cluster-control] 许可证限制 ${maxDevices} 台，跳过 ${exceededCount} 台设备`)
+    }
+
+    // 3. 只为限量设备启动 scrcpy
+    const instances = await startScrcpyInstances(limitedDevices, {
       ...config,
       adbPath: getAdbPath(),
       serverPath,
@@ -120,21 +150,28 @@ ipcMain.handle('cluster-control:initialize', async (event, config = {}) => {
         }
       },
     })
+
     runningInstances = instances
 
+    // 视频流连接：并行连接，渐进间隔避免瞬间冲击
+    const initialBatch = Math.min(3, instances.length)
     instances.forEach((instance, index) => {
       const { videoPort, serial } = instance
+      const delay = index < initialBatch
+        ? 200 + index * 100
+        : 500 + index * 150
       scheduleTimer(() => {
         if (!isSessionActive(session, event.sender))
           return
         connectToVideoStream(serial, videoPort, event.sender, 0, session)
-      }, 1500 + index * 350)
+      }, delay)
     })
 
     return {
       success: true,
       session,
-      devices: devices.map(d => ({
+      maxDevices,
+      devices: limitedDevices.map(d => ({
         serial: d.serial,
         model: d.model,
         width: d.width,
@@ -164,6 +201,7 @@ function destroyVideoClient(serial, intentional = true) {
   client.destroy()
   clients.delete(serial)
   streamParsers.delete(serial)
+  configSent.delete(serial)
 }
 
 function destroyAudioClient(serial, intentional = true) {
@@ -233,6 +271,13 @@ function connectToControlStream(serial, port, session, attempt = 0, onConnected 
   if (session !== clusterSession)
     return
 
+  // 检查 scrcpy 进程是否存活
+  const instance = runningInstances.find(item => item.serial === serial)
+  if (instance?.process?.exitCode !== null && instance?.process?.exitCode !== undefined) {
+    safeLog('warn', `[cluster-control][${serial}] scrcpy 进程已退出，跳过控制通道`)
+    return
+  }
+
   destroyControlClient(serial, true)
   controlConnectScheduled.add(serial)
 
@@ -253,10 +298,11 @@ function connectToControlStream(serial, port, session, attempt = 0, onConnected 
   client.on('error', (error) => {
     if (client._intentionalClose || session !== clusterSession)
       return
-    safeLog('warn', `[cluster-control][${serial}] 控制通道错误 (attempt ${attempt + 1}):`, error.message)
+    if (attempt < 3)
+      safeLog('warn', `[cluster-control][${serial}] 控制通道错误 (attempt ${attempt + 1}):`, error.message)
     destroyControlClient(serial, true)
-    if (attempt < 8) {
-      scheduleTimer(() => connectToControlStream(serial, port, session, attempt + 1, onConnected), 600)
+    if (attempt < 5) {
+      scheduleTimer(() => connectToControlStream(serial, port, session, attempt + 1, onConnected), 1000 + attempt * 500)
     }
   })
 
@@ -266,13 +312,13 @@ function connectToControlStream(serial, port, session, attempt = 0, onConnected 
       return
     }
     controlClients.delete(serial)
-    if (attempt < 8) {
-      scheduleTimer(() => connectToControlStream(serial, port, session, attempt + 1, onConnected), 800)
+    if (attempt < 5) {
+      scheduleTimer(() => connectToControlStream(serial, port, session, attempt + 1, onConnected), 1000 + attempt * 500)
     }
   })
 }
 
-function connectToVideoStream(serial, port, webContents, attempt = 0, session = clusterSession) {
+function connectToVideoStream(serial, port, webContents, attempt = 0, session = clusterSession, onReady = null) {
   if (!isSessionActive(session, webContents))
     return
 
@@ -286,6 +332,17 @@ function connectToVideoStream(serial, port, webContents, attempt = 0, session = 
   let gotData = false
   let dataTimer = null
   let reconnectTimer = null
+  let readyFired = false
+
+  const fireReady = () => {
+    if (readyFired)
+      return
+    readyFired = true
+    try {
+      onReady?.()
+    }
+    catch {}
+  }
 
   const cleanup = () => {
     if (dataTimer) {
@@ -308,7 +365,7 @@ function connectToVideoStream(serial, port, webContents, attempt = 0, session = 
 
     reconnectTimer = scheduleTimer(() => {
       reconnectTimer = null
-      connectToVideoStream(serial, port, webContents, attempt + 1, session)
+      connectToVideoStream(serial, port, webContents, attempt + 1, session, onReady)
     }, delayMs)
   }
 
@@ -318,6 +375,7 @@ function connectToVideoStream(serial, port, webContents, attempt = 0, session = 
     client.destroy()
     streamParsers.delete(serial)
     clients.delete(serial)
+    configSent.delete(serial)
     destroyControlClient(serial, true)
     destroyAudioClient(serial, true)
     controlConnectScheduled.delete(serial)
@@ -334,15 +392,27 @@ function connectToVideoStream(serial, port, webContents, attempt = 0, session = 
     safeLog('log', `[cluster-control][${serial}] 视频流已连接: ${port} (attempt ${attempt + 1})`)
     clients.set(serial, client)
 
-    const instance = runningInstances.find(item => item.serial === serial)
-    if (instance?.enableAudio) {
-      connectToAudioStream(serial, port, session, 0, () => {
+    // 延迟连接控制/音频通道，确保 scrcpy-server 准备就绪
+    scheduleTimer(() => {
+      if (!isSessionActive(session, webContents))
+        return
+
+      // 检查 scrcpy 进程是否存活
+      const instance = runningInstances.find(item => item.serial === serial)
+      if (instance?.process?.exitCode !== null && instance?.process?.exitCode !== undefined) {
+        safeLog('warn', `[cluster-control][${serial}] scrcpy 进程已退出，跳过控制通道`)
+        return
+      }
+
+      if (instance?.enableAudio) {
+        connectToAudioStream(serial, port, session, 0, () => {
+          connectToControlStream(serial, port, session, 0)
+        })
+      }
+      else {
         connectToControlStream(serial, port, session, 0)
-      })
-    }
-    else {
-      connectToControlStream(serial, port, session, 0)
-    }
+      }
+    }, 500)
 
     dataTimer = scheduleTimer(() => {
       if (!isSessionActive(session, webContents))
@@ -358,12 +428,23 @@ function connectToVideoStream(serial, port, webContents, attempt = 0, session = 
     if (session !== clusterSession)
       return
 
-    gotData = true
+    if (!gotData) {
+      gotData = true
+      fireReady()
+    }
     cleanup()
 
     const frames = parser.push(data)
+    // 帧率节流：非关键帧超过最小间隔则跳过
+    const throttle = frameThrottleMap.get(serial) || { lastTime: 0, minIntervalMs: 16 }
+    const now = Date.now()
+
     for (const frame of frames) {
       if (frame.config) {
+        if (!configSent.has(serial)) {
+          configSent.add(serial)
+          safeLog('log', `[cluster-control][${serial}] 首次发送 config 到渲染进程`)
+        }
         trySend(webContents, 'cluster-control:frame', {
           session,
           serial,
@@ -373,6 +454,13 @@ function connectToVideoStream(serial, port, webContents, attempt = 0, session = 
         })
         continue
       }
+
+      // 关键帧不节流，非关键帧按间隔节流
+      if (!frame.keyframe && now - throttle.lastTime < throttle.minIntervalMs)
+        continue
+
+      throttle.lastTime = now
+      frameThrottleMap.set(serial, throttle)
 
       trySend(webContents, 'cluster-control:frame', {
         session,
@@ -746,6 +834,55 @@ ipcMain.handle('cluster-control:stopAll', () => {
   return { success: true }
 })
 
+/** 独立 SDL 窗口：只允许同时打开一个 */
+let standaloneProcess = null
+
+ipcMain.handle('cluster-control:openStandalone', (_event, { serial, model }) => {
+  // 关闭上一个独立窗口
+  if (standaloneProcess && !standaloneProcess.killed) {
+    try {
+      standaloneProcess.kill('SIGTERM')
+    }
+    catch {}
+    standaloneProcess = null
+  }
+
+  const scrcpyPath = getScrcpyPath()
+  const title = model ? `${model} (${serial})` : serial
+
+  standaloneProcess = spawn(scrcpyPath, [
+    '--serial', serial,
+    '--window-title', title,
+    '--stay-awake',
+    '--turn-screen-off',
+  ], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  standaloneProcess.on('exit', () => {
+    standaloneProcess = null
+  })
+
+  standaloneProcess.stderr?.on('data', (data) => {
+    safeLog('debug', `[cluster-control][standalone] ${data.toString().trim()}`)
+  })
+
+  safeLog('log', `[cluster-control] 已打开独立窗口: ${serial}`)
+  return { success: true }
+})
+
+ipcMain.handle('cluster-control:closeStandalone', () => {
+  if (standaloneProcess && !standaloneProcess.killed) {
+    try {
+      standaloneProcess.kill('SIGTERM')
+    }
+    catch {}
+    standaloneProcess = null
+    safeLog('log', '[cluster-control] 已关闭独立窗口')
+  }
+  return { success: true }
+})
+
 function stopAll() {
   clusterSession++
   clearAllTimers()
@@ -765,9 +902,20 @@ function stopAll() {
   lastTouchUpAt.clear()
   deviceStreamSizes.clear()
   deviceMaxVideoSizes.clear()
+  frameThrottleMap.clear()
+  configSent.clear()
   currentMasterSerial = null
   stopScrcpyInstances(runningInstances)
   runningInstances = []
+
+  // 关闭独立 SDL 窗口
+  if (standaloneProcess && !standaloneProcess.killed) {
+    try {
+      standaloneProcess.kill('SIGTERM')
+    }
+    catch {}
+    standaloneProcess = null
+  }
 }
 
 process.on('exit', () => {

@@ -32,7 +32,7 @@ function generateLicenseKey(tier, machineId, days = 365) {
   return `${prefix}${expiryPart}${sigPart}`
 }
 
-function parseAndVerifyKey(licenseKey, machineId) {
+export function parseAndVerifyKey(licenseKey, machineId) {
   if (!licenseKey) {
     return { valid: false, tier: 'free', deviceLimit: 2, allowedCategories: ['general'], customCategoryLimit: 0, reason: '未激活' }
   }

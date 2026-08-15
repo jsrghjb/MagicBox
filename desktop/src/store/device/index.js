@@ -60,13 +60,21 @@ export const useDeviceStore = defineStore('app-device', () => {
     return value
   }
 
-  async function getList() {
+  async function getList(deviceLimit) {
     const historyDevices = getHistoryDevices()
     const currentDevices = await getCurrentDevices()
     const mergedDevices = mergeDevices(historyDevices, currentDevices)
     saveDevicesToStore(mergedDevices)
-    list.value = mergedDevices
-    return mergedDevices
+
+    // 许可证设备数量限制（仅当传入 deviceLimit 时生效，undefined 表示不限制）
+    let limitedDevices = mergedDevices
+    if (deviceLimit != null && deviceLimit > 0 && limitedDevices.length > deviceLimit) {
+      console.warn(`[device-store] 设备数 ${limitedDevices.length} > 许可证限制 ${deviceLimit}，截断显示`)
+      limitedDevices = limitedDevices.slice(0, deviceLimit)
+    }
+
+    list.value = limitedDevices
+    return limitedDevices
   }
 
   function setRemark(deviceId, value) {

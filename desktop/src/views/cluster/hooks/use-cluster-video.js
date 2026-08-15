@@ -8,93 +8,72 @@ import {
   prepareEncodedData,
 } from '../utils/h264.js'
 
+const VIDEO_DECODER_SUPPORTED = typeof VideoDecoder !== 'undefined'
+
 function toUint8Array(data) {
   if (data instanceof Uint8Array)
     return data
   if (typeof data === 'string')
     return base64ToBytes(data)
+  if (data == null)
+    return new Uint8Array(0)
   return new Uint8Array(data)
 }
 
-/**
- * 单设备解码管线：config → 关键帧 → P 帧，串行处理避免竞态。
- */
+const STATE = {
+  IDLE: 'idle',
+  CONFIGURING: 'configuring',
+  READY: 'ready',
+  ERROR: 'error',
+}
+
 class DeviceVideoPipeline {
-  constructor(serial, onRendered) {
+  constructor(serial, onRendered, onError) {
     this.serial = serial
     this.onRendered = onRendered
+    this.onError = onError
     this.canvas = null
     this.decoder = null
     this.sps = null
     this.pps = null
-    this.configured = false
-    this.gotFirstFrame = false
-    /** configure / 出错后必须等到关键帧再喂 P 帧 */
-    this.awaitingKeyframe = true
-    this.timestamp = 0
-    this.queue = Promise.resolve()
-    this.pendingFrames = 0
+    this.state = STATE.IDLE
     this.active = true
-    /** 视频流编码尺寸（触控坐标系） */
+    this.timestamp = 0
+    this.bufferedKeyframe = null
+    this.bufferedDataFrames = []
+    this._configPromise = null
     this.streamWidth = 0
     this.streamHeight = 0
     this.displayWidth = 0
     this.displayHeight = 0
     this.lastReportedWidth = 0
     this.lastReportedHeight = 0
+    this._firstFrameLogged = false
+    this._configAttempts = 0
   }
 
   setCanvas(el) {
     this.canvas = el || null
+    if (el && this.state === STATE.READY && this.bufferedKeyframe) {
+      const kf = this.bufferedKeyframe
+      this.bufferedKeyframe = null
+      this._decodeData(kf.data, true)
+    }
   }
 
   destroy() {
     this.active = false
-    this.resetDecoder()
+    this._cleanup()
     this.canvas = null
     this.sps = null
     this.pps = null
-    this.configured = false
-    this.gotFirstFrame = false
-    this.awaitingKeyframe = true
-    this.queue = Promise.resolve()
-    this.pendingFrames = 0
-    this.streamWidth = 0
-    this.streamHeight = 0
-    this.displayWidth = 0
-    this.displayHeight = 0
-    this.lastReportedWidth = 0
-    this.lastReportedHeight = 0
+    this.state = STATE.IDLE
+    this.bufferedKeyframe = null
+    this.bufferedDataFrames = []
+    this._configPromise = null
   }
 
-  resetQueue() {
-    this.queue = Promise.resolve()
-    this.pendingFrames = 0
-  }
-
-  enqueue(task) {
-    if (this.pendingFrames > 15) {
-      this.resetQueue()
-      this.awaitingKeyframe = true
-    }
-
-    this.pendingFrames += 1
-    this.queue = this.queue.then(async () => {
-      if (!this.active)
-        return
-      try {
-        await task()
-      }
-      finally {
-        this.pendingFrames = Math.max(0, this.pendingFrames - 1)
-      }
-    }).catch((error) => {
-      console.error(`[cluster][${this.serial}] pipeline error:`, error)
-    })
-    return this.queue
-  }
-
-  resetDecoder() {
+  _cleanup() {
     if (this.decoder?.state !== 'closed') {
       try {
         this.decoder?.close()
@@ -102,74 +81,106 @@ class DeviceVideoPipeline {
       catch {}
     }
     this.decoder = null
-    this.configured = false
-    this.gotFirstFrame = false
-    this.awaitingKeyframe = true
-    this.timestamp = 0
   }
 
-  reportStreamSize(width, height) {
-    if (!width || !height)
-      return
-    if (this.lastReportedWidth === width && this.lastReportedHeight === height)
-      return
-
-    this.lastReportedWidth = width
-    this.lastReportedHeight = height
-    window.$preload.ipcRenderer?.send('cluster-control:streamSize', {
-      serial: this.serial,
-      width,
-      height,
-    })
-  }
-
-  async applyCodec(sps, pps) {
-    if (!sps?.length || !pps?.length)
-      return false
-
-    const sameCodec = this.sps && this.pps
-      && bytesEqual(this.sps, sps)
-      && bytesEqual(this.pps, pps)
-
-    this.sps = sps
-    this.pps = pps
-
-    if (sameCodec && this.configured && this.decoder?.state === 'configured')
+  async _ensureConfigured() {
+    if (this.state === STATE.READY)
       return true
+    if (this.state === STATE.CONFIGURING)
+      return this._configPromise
 
-    this.resetDecoder()
-
-    const config = {
-      codec: codecFromSps(sps),
-      description: buildAvcDescription(sps, pps),
-      optimizeForLatency: true,
-    }
-
-    const support = await VideoDecoder.isConfigSupported(config)
-    if (!support.supported) {
-      console.error(`[cluster][${this.serial}] codec not supported:`, config.codec)
+    if (!VIDEO_DECODER_SUPPORTED) {
+      this.state = STATE.ERROR
+      this.onError?.(this.serial, 'VideoDecoder 不可用')
       return false
     }
 
-    this.decoder = new VideoDecoder({
-      output: (frame) => {
-        this.drawFrame(frame)
-      },
-      error: (error) => {
-        console.warn(`[cluster][${this.serial}] Decoder error, wait for keyframe:`, error.message)
-        this.resetDecoder()
-      },
-    })
+    if (!this.sps?.length || !this.pps?.length) {
+      this.state = STATE.ERROR
+      this.onError?.(this.serial, '等待 sps/pps 配置数据')
+      return false
+    }
 
-    this.decoder.configure(config)
-    this.configured = true
-    this.awaitingKeyframe = true
-    this.gotFirstFrame = false
-    this.timestamp = 0
-    return true
+    this.state = STATE.CONFIGURING
+    this._configAttempts++
+
+    this._configPromise = (async () => {
+      try {
+        this._cleanup()
+
+        const codec = codecFromSps(this.sps)
+        const description = buildAvcDescription(this.sps, this.pps)
+        const config = { codec, description, optimizeForLatency: true }
+
+        let support
+        try {
+          support = await VideoDecoder.isConfigSupported(config)
+        }
+        catch (e) {
+          this.state = STATE.ERROR
+          this.onError?.(this.serial, `isConfigSupported 异常: ${e.message}`)
+          return false
+        }
+
+        if (!support?.supported) {
+          this.state = STATE.ERROR
+          this.onError?.(this.serial, `编码不支持: ${codec}`)
+          return false
+        }
+
+        this.decoder = new VideoDecoder({
+          output: (frame) => {
+            try {
+              this._drawFrame(frame)
+            }
+            catch (e) {
+              console.error(`[cluster][${this.serial}] drawFrame error:`, e)
+            }
+          },
+          error: (error) => {
+            console.warn(`[cluster][${this.serial}] Decoder error:`, error.message)
+            this._cleanup()
+            this.state = STATE.IDLE
+            this.onError?.(this.serial, `解码器错误: ${error.message}`)
+            if (this.sps?.length && this.pps?.length && this.active)
+              this._ensureConfigured()
+          },
+        })
+
+        await this.decoder.configure(config)
+        this.state = STATE.READY
+        this._configAttempts = 0
+        this.onError?.(this.serial, '')
+
+        if (this.bufferedKeyframe) {
+          const kf = this.bufferedKeyframe
+          this.bufferedKeyframe = null
+          this._decodeData(kf.data, true)
+        }
+
+        for (const frame of this.bufferedDataFrames)
+          this._decodeData(frame.data, false)
+        this.bufferedDataFrames = []
+
+        console.log(`[cluster][${this.serial}] decoder configured (attempt ${this._configAttempts})`)
+        return true
+      }
+      catch (e) {
+        this.state = STATE.ERROR
+        this.onError?.(this.serial, `解码器创建失败: ${e.message}`)
+        console.error(`[cluster][${this.serial}] _ensureConfigured error:`, e)
+        this._cleanup()
+        return false
+      }
+      finally {
+        this._configPromise = null
+      }
+    })()
+
+    return this._configPromise
   }
 
-  drawFrame(frame) {
+  _drawFrame(frame) {
     try {
       if (!this.active)
         return
@@ -181,7 +192,7 @@ class DeviceVideoPipeline {
 
       this.streamWidth = codedW
       this.streamHeight = codedH
-      this.reportStreamSize(codedW, codedH)
+      this._reportStreamSize(codedW, codedH)
 
       if (!this.canvas)
         return
@@ -203,109 +214,128 @@ class DeviceVideoPipeline {
         return
 
       ctx.drawImage(frame, 0, 0, codedW, codedH)
-      this.gotFirstFrame = true
+      if (!this._firstFrameLogged) {
+        this._firstFrameLogged = true
+        console.log(`[cluster][${this.serial}] first frame ${codedW}x${codedH}`)
+      }
       this.onRendered(this.serial)
     }
+    catch (e) {
+      console.error(`[cluster][${this.serial}] drawFrame exception:`, e)
+    }
     finally {
-      frame.close()
+      try {
+        frame.close()
+      }
+      catch {}
     }
   }
 
-  decodeFrame(data, keyframeFlag) {
-    if (!this.active || !this.configured)
+  _reportStreamSize(width, height) {
+    if (!width || !height)
       return
+    if (this.lastReportedWidth === width && this.lastReportedHeight === height)
+      return
+    this.lastReportedWidth = width
+    this.lastReportedHeight = height
+    window.$preload.ipcRenderer?.send('cluster-control:streamSize', {
+      serial: this.serial,
+      width,
+      height,
+    })
+  }
 
-    const isKey = keyframeFlag || isKeyframeData(data)
-    if (this.awaitingKeyframe && !isKey)
+  _decodeData(data, isKeyframe) {
+    if (!this.active)
       return
-    if (!this.gotFirstFrame && !isKey)
+    if (!this.decoder || this.decoder.state !== 'configured')
       return
-
-    const decoder = this.decoder
-    if (!decoder || decoder.state !== 'configured')
-      return
-
-    if (isKey)
-      this.awaitingKeyframe = false
 
     this.timestamp += 33333
     const chunk = new EncodedVideoChunk({
-      type: isKey ? 'key' : 'delta',
+      type: isKeyframe ? 'key' : 'delta',
       timestamp: this.timestamp,
       data: prepareEncodedData(data),
     })
 
-    decoder.decode(chunk)
+    try {
+      this.decoder.decode(chunk)
+    }
+    catch (e) {
+      console.error(`[cluster][${this.serial}] decode error:`, e)
+      this.state = STATE.IDLE
+      this._cleanup()
+      if (this.sps?.length && this.pps?.length && this.active)
+        this._ensureConfigured()
+    }
   }
 
   handleConfig(spsData, ppsData) {
     const nextSps = toUint8Array(spsData)
     const nextPps = toUint8Array(ppsData)
+
+    if (!nextSps.length || !nextPps.length) {
+      this.onError?.(this.serial, '收到空的 sps/pps')
+      return
+    }
+
     const changed = !this.sps || !this.pps
       || !bytesEqual(this.sps, nextSps)
       || !bytesEqual(this.pps, nextPps)
 
-    if (changed) {
-      this.resetQueue()
-      this.resetDecoder()
+    this.sps = nextSps
+    this.pps = nextPps
+
+    if (changed && (this.state === STATE.READY || this.state === STATE.CONFIGURING)) {
+      this.state = STATE.IDLE
+      this._cleanup()
+      this._configPromise = null
     }
 
-    return this.enqueue(async () => {
-      await this.applyCodec(nextSps, nextPps)
-    })
+    if (this.state === STATE.IDLE || this.state === STATE.ERROR)
+      this._ensureConfigured()
   }
 
   handleFrame(payload) {
     const { data, keyframe } = payload
     if (!data)
-      return this.queue
+      return
 
-    const isKey = !!keyframe
-    if (this.awaitingKeyframe && !isKey)
-      return this.queue
+    const uintData = toUint8Array(data)
+    const isKey = !!keyframe || isKeyframeData(uintData)
 
-    if (!isKey && this.pendingFrames > 24) {
-      this.resetQueue()
-      this.resetDecoder()
-      if (this.sps && this.pps) {
-        return this.enqueue(async () => {
-          await this.applyCodec(this.sps, this.pps)
-        })
-      }
-      return this.queue
+    if (isKey)
+      this.bufferedKeyframe = { data: uintData }
+
+    if (this.state !== STATE.READY) {
+      if (this.sps?.length && this.pps?.length && this.state !== STATE.CONFIGURING)
+        this._ensureConfigured()
+
+      if (!isKey && this.bufferedDataFrames.length < 60)
+        this.bufferedDataFrames.push({ data: uintData })
+
+      return
     }
 
-    return this.enqueue(async () => {
-      const bytes = toUint8Array(data)
-      const resolvedKey = isKey || isKeyframeData(bytes)
-
-      if (this.awaitingKeyframe && !resolvedKey)
-        return
-
-      try {
-        if (resolvedKey && !this.configured && this.sps && this.pps)
-          await this.applyCodec(this.sps, this.pps)
-
-        this.decodeFrame(bytes, resolvedKey)
-      }
-      catch (error) {
-        this.resetDecoder()
-        if (!resolvedKey)
-          return
-
-        console.error(`[cluster][${this.serial}] Decode error:`, error)
-        if (this.sps && this.pps)
-          await this.applyCodec(this.sps, this.pps)
-        this.decodeFrame(bytes, true)
-      }
-    })
+    this._decodeData(uintData, isKey)
   }
 }
 
 export function useClusterVideo() {
   const renderedSerials = ref(new Set())
+  const pipelineErrors = ref({})
   const pipelines = new Map()
   let frameSession = 0
+
+  function setPipelineError(serial, message) {
+    if (!message) {
+      delete pipelineErrors.value[serial]
+      pipelineErrors.value = { ...pipelineErrors.value }
+    }
+    else {
+      pipelineErrors.value = { ...pipelineErrors.value, [serial]: message }
+    }
+  }
 
   function markRendered(serial) {
     if (renderedSerials.value.has(serial))
@@ -317,7 +347,7 @@ export function useClusterVideo() {
 
   function getPipeline(serial) {
     if (!pipelines.has(serial))
-      pipelines.set(serial, new DeviceVideoPipeline(serial, markRendered))
+      pipelines.set(serial, new DeviceVideoPipeline(serial, markRendered, setPipelineError))
     return pipelines.get(serial)
   }
 
@@ -329,10 +359,16 @@ export function useClusterVideo() {
       pipeline.destroy()
     pipelines.clear()
     renderedSerials.value = new Set()
+    pipelineErrors.value = {}
+  }
+
+  function acceptSession(session) {
+    frameSession = session
   }
 
   function setCanvasRef(serial, el) {
-    getPipeline(serial).setCanvas(el)
+    const pipeline = getPipeline(serial)
+    pipeline.setCanvas(el)
   }
 
   function initDevice(serial) {
@@ -340,36 +376,37 @@ export function useClusterVideo() {
   }
 
   function onVideoFrame(payload) {
-    if (payload?.session != null && payload.session !== frameSession)
-      return
-
     const { serial, config, sps, pps, data } = payload
     if (!serial)
       return
 
+    if (config) {
+      const pipeline = getPipeline(serial)
+      pipeline.handleConfig(sps, pps)
+      return
+    }
+
+    if (payload?.session != null && payload.session !== frameSession)
+      return
+
     const pipeline = getPipeline(serial)
-    if (config)
-      return pipeline.handleConfig(sps, pps)
     if (data)
-      return pipeline.handleFrame(payload)
+      pipeline.handleFrame(payload)
   }
 
   function isDeviceRendered(serial) {
     return renderedSerials.value.has(serial)
   }
 
-  function getCanvas(serial) {
-    return pipelines.get(serial)?.canvas || null
+  function getPipelineError(serial) {
+    return pipelineErrors.value[serial] || ''
   }
 
   function getStreamSize(serial) {
     const pipeline = pipelines.get(serial)
     if (!pipeline?.streamWidth || !pipeline?.streamHeight)
       return null
-    return {
-      width: pipeline.streamWidth,
-      height: pipeline.streamHeight,
-    }
+    return { width: pipeline.streamWidth, height: pipeline.streamHeight }
   }
 
   function destroy() {
@@ -377,17 +414,21 @@ export function useClusterVideo() {
       pipeline.destroy()
     pipelines.clear()
     renderedSerials.value = new Set()
+    pipelineErrors.value = {}
   }
 
   return {
+    VIDEO_DECODER_SUPPORTED,
     renderedSerials,
+    pipelineErrors,
     setFrameSession,
+    acceptSession,
     setCanvasRef,
     initDevice,
     onVideoFrame,
     destroy,
     isDeviceRendered,
-    getCanvas,
+    getPipelineError,
     getStreamSize,
   }
 }
