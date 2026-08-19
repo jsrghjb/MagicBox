@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { adbKeyboardApkPath, desktopPath, getDefaultAdbPath } from '$electron/configs/index.js'
 import electronStore from '$electron/helpers/store/index.js'
@@ -209,24 +210,27 @@ async function push(id, filePath, args = {}) {
 }
 
 export async function pushImageFromUrl(deviceId, url, remotePath = '/sdcard/DCIM/Camera') {
+  let localTempFile = ''
   try {
-    const res = await fetch(url)
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    let buffer
+    if (url.startsWith('data:image/')) {
+      const base64Data = url.replace(/^data:image\/\w+;base64,/, '')
+      buffer = Buffer.from(base64Data, 'base64')
     }
-    const arrayBuffer = await res.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    else {
+      const res = await fetch(url)
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+      }
+      const arrayBuffer = await res.arrayBuffer()
+      buffer = Buffer.from(arrayBuffer)
+    }
 
     const fileName = `xhs_mat_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`
-    const fullSavePath = `${remotePath}/${fileName}`.replace(/\/+/g, '/')
+    localTempFile = path.join(os.tmpdir(), fileName)
+    fs.writeFileSync(localTempFile, buffer)
 
-    const device = client.getDevice(deviceId)
-    const transfer = await device.push(buffer, fullSavePath)
-
-    await new Promise((resolve, reject) => {
-      transfer.on('end', resolve)
-      transfer.on('error', reject)
-    })
+    const fullSavePath = await push(deviceId, localTempFile, { savePath: remotePath })
 
     await deviceShell(deviceId, `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://${fullSavePath}"`).catch(() => {})
 
@@ -235,6 +239,14 @@ export async function pushImageFromUrl(deviceId, url, remotePath = '/sdcard/DCIM
   catch (err) {
     console.warn(`Failed to push image from url (${url}):`, err?.message || err)
     throw err
+  }
+  finally {
+    if (localTempFile && fs.existsSync(localTempFile)) {
+      try {
+        fs.unlinkSync(localTempFile)
+      }
+      catch {}
+    }
   }
 }
 
