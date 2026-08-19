@@ -1,6 +1,7 @@
 import { AUTOMATION_TEMPLATES, buildTemplateSteps } from '$/utils/automation/templates.js'
 import { downloadScriptJson, readScriptJsonFile } from '$/utils/automation/export-import.js'
 import { useLicenseStore } from '$/store/license/index.js'
+import { useDeviceStore } from '$/store/device/index.js'
 
 /**
  * Run / record / AI / template / import / export actions for the automation editor.
@@ -8,6 +9,7 @@ import { useLicenseStore } from '$/store/license/index.js'
  */
 export function useAutomationEditorRuns(ctx) {
   const licenseStore = useLicenseStore()
+  const deviceStore = useDeviceStore()
   function openMacroRecorder(mode) {
     if (!ctx.deviceId?.value) {
       ElMessage.warning('请先连接并选择设备！')
@@ -161,19 +163,30 @@ export function useAutomationEditorRuns(ctx) {
     }
   }
 
-  async function handleRunAll() {
-    if (!ctx.deviceId?.value) {
-      ElMessage.warning('请选择要执行脚本的设备！')
-      return
+  function resolveExecutionDevice() {
+    const rawDev = ctx.deviceId?.value
+    const activeDev = deviceStore.resolveActiveDevice(rawDev)
+    const onlineDev = deviceStore.list.find(d => d.id === activeDev && d.status === 'device')
+    if (onlineDev) {
+      return onlineDev.id
     }
-    const cat = ctx.currentScript.value?.category || 'general'
-    if (!licenseStore.checkCategoryAccess(cat)) {
-      licenseStore.openUpgradeModal(cat)
+    const anyOnline = deviceStore.list.find(d => d.status === 'device')
+    if (anyOnline) {
+      return anyOnline.id
+    }
+    return null
+  }
+
+  async function handleRunAll() {
+    await deviceStore.getList()
+    const targetDev = resolveExecutionDevice()
+    if (!targetDev) {
+      ElMessage.warning('当前没有在线连接的设备，请先连接手机或开启 USB 调试！')
       return
     }
     ctx.automationStore.clearLogs()
     await ctx.automationStore.runScript({
-      deviceId: ctx.deviceId.value,
+      deviceId: targetDev,
       script: ctx.currentScript.value,
     })
   }
@@ -182,19 +195,16 @@ export function useAutomationEditorRuns(ctx) {
     if (!ctx.selectedStep.value || !ctx.currentScript.value) {
       return
     }
-    if (!ctx.deviceId?.value) {
-      ElMessage.warning('请选择要执行脚本的设备！')
-      return
-    }
-    const cat = ctx.currentScript.value?.category || 'general'
-    if (!licenseStore.checkCategoryAccess(cat)) {
-      licenseStore.openUpgradeModal(cat)
+    await deviceStore.getList()
+    const targetDev = resolveExecutionDevice()
+    if (!targetDev) {
+      ElMessage.warning('当前没有在线连接的设备，请先连接手机或开启 USB 调试！')
       return
     }
     const stepIndex = ctx.currentScript.value.steps.findIndex(step => step.id === ctx.selectedStep.value.id)
     ctx.automationStore.clearLogs()
     await ctx.automationStore.runScript({
-      deviceId: ctx.deviceId.value,
+      deviceId: targetDev,
       script: ctx.currentScript.value,
       stepIndexes: [stepIndex],
     })
@@ -204,13 +214,10 @@ export function useAutomationEditorRuns(ctx) {
     if (!ctx.selectedStepIds.value.length || !ctx.currentScript.value) {
       return
     }
-    if (!ctx.deviceId?.value) {
-      ElMessage.warning('请选择要执行脚本的设备！')
-      return
-    }
-    const cat = ctx.currentScript.value?.category || 'general'
-    if (!licenseStore.checkCategoryAccess(cat)) {
-      licenseStore.openUpgradeModal(cat)
+    await deviceStore.getList()
+    const targetDev = resolveExecutionDevice()
+    if (!targetDev) {
+      ElMessage.warning('当前没有在线连接的设备，请先连接手机或开启 USB 调试！')
       return
     }
     const selectedId = ctx.selectedStepIds.value[0]
@@ -224,7 +231,7 @@ export function useAutomationEditorRuns(ctx) {
     }
     ctx.automationStore.clearLogs()
     await ctx.automationStore.runScript({
-      deviceId: ctx.deviceId.value,
+      deviceId: targetDev,
       script: ctx.currentScript.value,
       stepIndexes: indexes,
     })
@@ -234,8 +241,10 @@ export function useAutomationEditorRuns(ctx) {
     if (!ctx.currentScript.value) {
       return
     }
-    if (!ctx.deviceId?.value) {
-      ElMessage.warning('请选择要执行脚本的设备！')
+    await deviceStore.getList()
+    const targetDev = resolveExecutionDevice()
+    if (!targetDev) {
+      ElMessage.warning('当前没有在线连接的设备，请先连接手机或开启 USB 调试！')
       return
     }
     const cat = ctx.currentScript.value?.category || 'general'

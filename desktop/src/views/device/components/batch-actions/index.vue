@@ -16,23 +16,28 @@
         }"
       >
         <template #default="{ loading = false, trigger }">
-          <el-button
-            plain
-            :title="$t(item.tips || item.label)"
-            :loading="loading"
-            v-bind="{
-              ...(trigger ? {
-                onClick: () => trigger(devices),
-              } : {}),
-            }"
+          <el-tooltip
+            :content="getActionLabel(item)"
+            placement="top"
+            :show-after="100"
           >
-            <template #icon>
-              <el-icon v-if="item.elIcon" :class="item.iconClass">
-                <component :is="item.elIcon" />
-              </el-icon>
-              <i v-else-if="item.fontIcon" :class="item.fontIcon"></i>
-            </template>
-          </el-button>
+            <el-button
+              plain
+              :loading="loading"
+              v-bind="{
+                ...(trigger ? {
+                  onClick: () => trigger(devices),
+                } : {}),
+              }"
+            >
+              <template #icon>
+                <el-icon v-if="item.elIcon" :class="item.iconClass">
+                  <component :is="item.elIcon" />
+                </el-icon>
+                <i v-else-if="item.fontIcon" :class="item.fontIcon"></i>
+              </template>
+            </el-button>
+          </el-tooltip>
         </template>
       </component>
     </el-button-group>
@@ -42,11 +47,11 @@
 <script setup>
 import { Delete as DeleteIcon, Monitor } from '@element-plus/icons-vue'
 import Mirror from './mirror/index.vue'
+import Rename from './rename/index.vue'
 import Application from './application/index.vue'
 import FilePush from './file-push/index.vue'
 import Screenshot from './screenshot/index.vue'
 import Schedule from './schedule/index.vue'
-import Automation from './automation/index.vue'
 import Delete from './delete/index.vue'
 
 const props = defineProps({
@@ -61,6 +66,12 @@ const actionModel = [
     label: 'device.mirror.start',
     elIcon: Monitor,
     component: Mirror,
+  },
+  {
+    label: 'device.batch.rename',
+    tips: 'device.batch.rename',
+    fontIcon: 'i-bi-sort-numeric-down',
+    component: Rename,
   },
   {
     label: 'device.remove',
@@ -87,12 +98,24 @@ const actionModel = [
     fontIcon: 'i-bi-clock',
     component: Schedule,
   },
-  {
-    label: 'automation.name.execute',
-    fontIcon: 'i-bi-robot',
-    component: Automation,
-  },
 ]
+
+const fallbackLabels = {
+  'device.batch.rename': '批量编号',
+  'device.batch.rename.title': '批量设备顺序编号',
+}
+
+function getActionLabel(item) {
+  const key = item.tips || item.label
+  if (!key) {
+    return ''
+  }
+  const val = window.t(key)
+  if (val === key && fallbackLabels[key]) {
+    return fallbackLabels[key]
+  }
+  return val || fallbackLabels[key] || key
+}
 </script>
 
 <style></style>

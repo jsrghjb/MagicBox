@@ -22,7 +22,6 @@
                 @click="handleCategoryFilterClick(cat)"
               >
                 <span>{{ cat.label }}</span>
-                <i v-if="!licenseStore.checkCategoryAccess(cat.id)" class="i-bi-lock-fill text-[10px] text-amber-400"></i>
               </button>
             </div>
 
@@ -56,71 +55,45 @@
         />
 
         <div class="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
-          <!-- 顶部操作栏与平台分类 Tabs (无论是否有选中脚本均 100% 始终显示) -->
-          <div class="flex items-center justify-between gap-3 flex-none overflow-x-auto no-scrollbar bg-gray-50/60 dark:bg-gray-900/40 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
-            <!-- 左侧: 选中脚本时的名称与控制按钮 / 未选中时的引导 -->
-            <div class="flex items-center gap-3 flex-none min-w-0">
-              <template v-if="currentScript">
-                <span class="text-sm text-gray-500 flex-none whitespace-nowrap">{{ $t('automation.script.name') }}</span>
-                <el-input
-                  v-model="currentScript.name"
-                  class="w-32 flex-none"
-                />
-                <span class="text-sm text-gray-500 flex-none whitespace-nowrap ml-1">分类</span>
-                <el-select
-                  v-model="currentScript.category"
-                  class="w-32 flex-none"
-                  placeholder="选择分类"
-                  @change="handleCategoryChange"
-                >
-                  <el-option label="通用基础" value="general" />
-                  <el-option label="🔒 小红书专区" value="xiaohongshu" />
-                  <el-option label="🔒 抖音/TikTok" value="douyin" />
-                  <el-option label="🔒 微信/视频号" value="wechat" />
-                  <el-option label="🔒 跨境电商" value="ecommerce" />
-                  <el-option label="🔒 自定义分类" value="custom" />
-                </el-select>
-                <RunToolbar
-                  class="flex-none"
-                  :status="automationStore.runnerStatus"
-                  :has-script="true"
-                  :has-steps="Boolean(currentScript?.steps?.length)"
-                  :has-selection="selectedStepIds.length > 0"
-                  :has-breakpoint="Boolean(automationStore.breakpointSnapshot)"
-                  :breakpoint-index="automationStore.breakpointSnapshot?.stepIndex ?? 0"
-                  @run-all="handleRunAll"
-                  @run-selected="handleRunSelected"
-                  @resume-breakpoint="handleResumeFromBreakpoint"
-                  @pause="automationStore.pauseRun"
-                  @resume="automationStore.resumeRun"
-                  @stop="automationStore.stopRun"
-                />
-              </template>
-              <template v-else>
-                <span class="text-xs text-gray-400 font-medium px-2 flex items-center gap-1">
-                  <i class="i-bi-info-circle text-primary-500"></i>
-                  请选择或新建自动化脚本
-                </span>
-              </template>
-            </div>
-
-            <!-- 右侧: 平台分类 Tabs (在这一行的最右边，单行不换行，100% 始终显示) -->
-            <div class="flex items-center gap-1 overflow-x-auto no-scrollbar whitespace-nowrap text-xs bg-gray-100 dark:bg-gray-800 p-1 rounded-lg border border-gray-200/50 dark:border-gray-700/50 flex-none">
-              <button
-                v-for="cat in categories"
-                :key="cat.id"
-                class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer flex-none"
-                :class="[
-                  selectedCategory === cat.id
-                    ? 'bg-primary-500 text-white font-medium shadow-sm'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-700/80',
-                ]"
-                @click="handleCategoryFilterClick(cat)"
+          <!-- 顶部操作栏 (极简不溢出) -->
+          <div class="flex items-center justify-between gap-3 flex-none bg-gray-50/70 dark:bg-gray-900/50 p-2 rounded-xl border border-gray-200/60 dark:border-gray-800/60 min-w-0">
+            <template v-if="currentScript">
+              <!-- 左侧: 脚本名称 -->
+              <el-input
+                v-model="currentScript.name"
+                placeholder="请输入脚本名称"
+                clearable
+                style="width: 380px; min-width: 260px; max-width: 480px;"
+                class="!w-96 flex-none"
               >
-                <span>{{ cat.label }}</span>
-                <i v-if="!licenseStore.checkCategoryAccess(cat.id)" class="i-bi-lock-fill text-[10px] text-amber-400"></i>
-              </button>
-            </div>
+                <template #prefix>
+                  <i class="i-bi-pencil-square text-gray-400 text-sm"></i>
+                </template>
+              </el-input>
+
+              <!-- 右侧: 运行与控制工具栏 -->
+              <RunToolbar
+                class="flex-none"
+                :status="automationStore.runningScriptId === currentScript?.id ? automationStore.runnerStatus : 'idle'"
+                :has-script="Boolean(currentScript)"
+                :has-steps="Boolean(currentScript?.steps?.length)"
+                :has-selection="selectedStepIds.length > 0"
+                :has-breakpoint="Boolean(automationStore.breakpointSnapshot && automationStore.breakpointSnapshot.scriptId === currentScript?.id)"
+                :breakpoint-index="automationStore.breakpointSnapshot?.stepIndex ?? 0"
+                @run-all="handleRunAll"
+                @run-selected="handleRunSelected"
+                @resume-breakpoint="handleResumeFromBreakpoint"
+                @pause="automationStore.pauseRun"
+                @resume="automationStore.resumeRun"
+                @stop="automationStore.stopRun"
+              />
+            </template>
+            <template v-else>
+              <span class="text-xs text-gray-400 font-medium px-2 flex items-center gap-1">
+                <i class="i-bi-info-circle text-primary-500"></i>
+                请选择或新建自动化脚本
+              </span>
+            </template>
           </div>
 
           <template v-if="currentScript">
@@ -245,27 +218,30 @@ const licenseStore = useLicenseStore()
 
 const selectedCategory = ref('all')
 const categories = [
-  { id: 'all', label: '全部' },
-  { id: 'general', label: '通用基础' },
-  { id: 'xiaohongshu', label: '小红书' },
-  { id: 'douyin', label: '抖音/TikTok' },
-  { id: 'wechat', label: '微信/视频号' },
-  { id: 'ecommerce', label: '跨境电商' },
-  { id: 'custom', label: '自定义' },
+  { id: 'all', label: '🌟 全部' },
+  { id: 'general', label: '⚡ 基础日常' },
+  { id: 'social', label: '💬 社交通讯' },
+  { id: 'media', label: '🎬 视频图文' },
+  { id: 'ecommerce', label: '🛍️ 电商营销' },
+  { id: 'game', label: '🎮 游戏日常' },
+  { id: 'system', label: '⚙️ 系统工具' },
+  { id: 'custom', label: '📁 自定义' },
 ]
 
 function handleCategoryFilterClick(cat) {
   selectedCategory.value = cat.id
-  if (cat.id !== 'all' && !licenseStore.checkCategoryAccess(cat.id)) {
-    licenseStore.openUpgradeModal(cat.id)
-  }
 }
 
-function handleCategoryChange(val) {
-  if (val && !licenseStore.checkCategoryAccess(val)) {
-    licenseStore.openUpgradeModal(val)
-  }
+const categoryLabels = {
+  general: '基础日常',
+  social: '社交通讯',
+  media: '视频图文',
+  ecommerce: '电商营销',
+  game: '游戏日常',
+  system: '系统工具',
+  custom: '自定义',
 }
+
 const {
   currentDevice,
   locale,
@@ -293,9 +269,23 @@ const pageTitle = computed(() => window.t('automation.name'))
 
 const editor = useAutomationEditor(deviceId)
 const { state, actions, runs } = editor
-const { scripts, currentScript, selectedStepIds, templateDialogVisible, batchDialogVisible, aiDialogVisible, recorderVisible, recorderMode, isRunning, selectedStep, automationStore } = state
+const { scripts, currentScript, selectedStepIds, templateDialogVisible, batchDialogVisible, aiDialogVisible, recorderVisible, recorderMode, isRunning, selectedStep, automationStore, updateScript } = state
 const { handleSelectScript, handleSelectStep, handleAddStep, handleRemoveStep, handleMoveStepUp, handleMoveStepDown, handleReorderSteps, handleInsertStepBefore, handleInsertStepAfter, handleUpdateStep, handleUpdateVars } = actions
 const { handleImportScript, handleExportScript, handleApplyTemplate, handleTemplateApply, handleAiGenerate, handleAiApply, handleRunAll, handleRunSingleStep, handleRunSelected, handleResumeFromBreakpoint } = runs
+
+async function handleCategoryChange(cat) {
+  if (currentScript.value?.id) {
+    currentScript.value.category = cat
+    try {
+      await updateScript(currentScript.value.id, { category: cat })
+      ElMessage.success(`已切换分类至 [${categoryLabels[cat] || cat}]`)
+    }
+    catch (err) {
+      console.error(err)
+      ElMessage.error('切换分类失败')
+    }
+  }
+}
 
 const isDark = computed({
   get: () => themeStore.isDark,
@@ -308,11 +298,17 @@ const isDark = computed({
 watch(
   () => scripts.value,
   (list) => {
-    if (queryParams.value?.scriptId && list?.length > 0) {
-      const target = list.find(s => s.id === queryParams.value.scriptId)
-      if (target) {
-        handleSelectScript(target)
-        queryParams.value.scriptId = null
+    if (list?.length > 0) {
+      if (queryParams.value?.scriptId) {
+        const target = list.find(s => s.id === queryParams.value.scriptId)
+        if (target) {
+          handleSelectScript(target)
+          queryParams.value.scriptId = null
+          return
+        }
+      }
+      if (!currentScript.value || !list.some(s => s.id === currentScript.value.id)) {
+        handleSelectScript(list[0])
       }
     }
   },
@@ -321,7 +317,10 @@ watch(
 
 async function handleCreateScript() {
   try {
-    await actions.handleCreateScript({ deviceId: deviceId.value })
+    await actions.handleCreateScript({
+      deviceId: 'common',
+      category: selectedCategory.value !== 'all' ? selectedCategory.value : 'general',
+    })
   }
   catch (error) {
     console.error('Failed to create script:', error)

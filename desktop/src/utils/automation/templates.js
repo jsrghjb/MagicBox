@@ -25,7 +25,7 @@ export const AUTOMATION_TEMPLATES = [
   {
     id: 'xiaohongshu_like',
     name: '📕 小红书 - 自动刷笔记与点赞',
-    category: 'xiaohongshu',
+    category: 'general',
     description: '自动启动小红书 App，浏览推荐页笔记并双击点赞互动。',
     vars: {
       searchKeyword: '数码好物推荐',
@@ -46,7 +46,7 @@ export const AUTOMATION_TEMPLATES = [
   {
     id: 'douyin_interact',
     name: '🎵 抖音/TikTok - 短视频自动浏览与双击',
-    category: 'douyin',
+    category: 'general',
     description: '自动启动抖音 App，循环刷推荐视频并双击点赞加关注。',
     vars: {
       watchDuration: '3000',
@@ -66,7 +66,7 @@ export const AUTOMATION_TEMPLATES = [
   {
     id: 'wechat_channels',
     name: '💬 微信/视频号 - 视频号养号与搜索',
-    category: 'wechat',
+    category: 'general',
     description: '自动调起微信客户端，搜索助手或浏览视频号专区。',
     vars: {
       searchText: '文件传输助手',
@@ -90,7 +90,7 @@ export const AUTOMATION_TEMPLATES = [
   {
     id: 'ecommerce_shop',
     name: '🛒 跨境电商 - 自动搜索与商品浏览',
-    category: 'ecommerce',
+    category: 'general',
     description: '自动在跨境电商客户端中搜索热门商品并模拟加购。',
     vars: {
       keyword: 'Wireless Earbuds',
@@ -110,7 +110,7 @@ export const AUTOMATION_TEMPLATES = [
   {
     id: 'custom_matrix',
     name: '⚙️ 自定义 - 矩阵群控通用作业模板',
-    category: 'custom',
+    category: 'general',
     description: '适用于多机矩阵自动化作业的灵活自定义流程。',
     vars: {},
     buildSteps() {

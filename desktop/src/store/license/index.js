@@ -67,14 +67,8 @@ export const useLicenseStore = defineStore('license', () => {
     return res
   }
 
-  function checkCategoryAccess(categoryId) {
-    if (!categoryId || categoryId === 'general' || categoryId === 'all') {
-      return true
-    }
-    if (isTeam.value || allowedCategories.value.includes('*')) {
-      return true
-    }
-    return allowedCategories.value.includes(categoryId)
+  function checkCategoryAccess(_categoryId) {
+    return true
   }
 
   function checkDeviceLimit(currentCount) {

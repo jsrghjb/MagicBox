@@ -321,35 +321,6 @@ async function discoverConnect(options = {}) {
     }
   }
 
-  // Persist discovered reachable devices so deviceStore.getList() presents them in the device table
-  try {
-    const storeDevices = electronStore.get('device') || {}
-    let storeUpdated = false
-
-    reachableDevices.forEach((dev) => {
-      const { host, port } = parseDeviceId(dev.address)
-      const targetPort = dev.port || port || 5555
-      const key = `${host}:${targetPort}`
-      if (!storeDevices[key]) {
-        storeDevices[key] = {
-          id: key,
-          name: dev.name || key,
-          status: 'offline',
-          type: 'offline',
-          wifi: true,
-        }
-        storeUpdated = true
-      }
-    })
-
-    if (storeUpdated) {
-      electronStore.set('device', storeDevices)
-    }
-  }
-  catch (err) {
-    console.warn('discoverConnect store save warning:', err)
-  }
-
   const connectableDevices = await filterConnectedDevices(reachableDevices, {
     client,
     excludeConnected,

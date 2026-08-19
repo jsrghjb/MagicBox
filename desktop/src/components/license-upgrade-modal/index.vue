@@ -28,9 +28,15 @@
       <!-- 周期切换器 (放在版本卡片上方) -->
       <div class="flex justify-center py-1">
         <el-radio-group v-model="selectedPeriod" size="default">
-          <el-radio-button value="monthly">月付</el-radio-button>
-          <el-radio-button value="quarterly">季付 (省15%)</el-radio-button>
-          <el-radio-button value="yearly">年付 (省35%最划算)</el-radio-button>
+          <el-radio-button value="monthly">
+            月付
+          </el-radio-button>
+          <el-radio-button value="quarterly">
+            季付 (省15%)
+          </el-radio-button>
+          <el-radio-button value="yearly">
+            年付 (省35%最划算)
+          </el-radio-button>
         </el-radio-group>
       </div>
 
@@ -45,8 +51,12 @@
             ✓ 当前使用中
           </div>
           <div>
-            <div class="text-xs text-gray-500 font-bold mb-1">🆓 免费体验版</div>
-            <div class="text-2xl font-extrabold text-gray-800 dark:text-gray-100">￥0</div>
+            <div class="text-xs text-gray-500 font-bold mb-1">
+              🆓 免费体验版
+            </div>
+            <div class="text-2xl font-extrabold text-gray-800 dark:text-gray-100">
+              ￥0
+            </div>
             <div class="text-[11px] text-gray-400 mt-2 space-y-1.5">
               <div>✓ 连控 <b>2 台</b> 设备</div>
               <div>✓ 仅限通用基础脚本</div>
@@ -71,7 +81,9 @@
             ✓ 当前版本 (已激活)
           </div>
           <div>
-            <div class="text-xs text-primary-600 font-bold mb-1">👤 个人专业版</div>
+            <div class="text-xs text-primary-600 font-bold mb-1">
+              👤 个人专业版
+            </div>
             <div class="flex items-baseline gap-1">
               <span class="text-2xl font-extrabold text-primary-600">￥{{ selectedPeriod === 'monthly' ? '49' : selectedPeriod === 'quarterly' ? '129' : '399' }}</span>
               <span class="text-[10px] text-gray-400">/{{ selectedPeriod === 'monthly' ? '月' : selectedPeriod === 'quarterly' ? '季' : '年' }}</span>
@@ -106,7 +118,9 @@
             🔥 强烈推荐
           </div>
           <div>
-            <div class="text-xs text-amber-600 font-bold mb-1">👥 团队旗舰版</div>
+            <div class="text-xs text-amber-600 font-bold mb-1">
+              👥 团队旗舰版
+            </div>
             <div class="flex items-baseline gap-1">
               <span class="text-2xl font-extrabold text-amber-600">￥{{ selectedPeriod === 'monthly' ? '149' : selectedPeriod === 'quarterly' ? '399' : '1199' }}</span>
               <span class="text-[10px] text-gray-400">/{{ selectedPeriod === 'monthly' ? '月' : selectedPeriod === 'quarterly' ? '季' : '年' }}</span>

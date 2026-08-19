@@ -1,22 +1,64 @@
 import dayjs from 'dayjs'
 import { RunnerStatus } from './runner-status.js'
 import { buildVariableMap, interpolateStep } from './variables.js'
+import { generateBionicSwipeTrajectory, generateBionicTapPoints } from './bezier.js'
+import { SmartTouchDispatcher } from './touch-dispatcher.js'
 
 export { RunnerStatus }
 
-function sleep(ms, signal) {
+let currentActiveController = null
+
+function sleep(ms, signal, controller = null) {
+  const ctrl = controller || currentActiveController
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
+    if (signal?.aborted || ctrl?.signal?.aborted) {
       reject(new Error('STOPPED'))
       return
     }
 
-    const timer = setTimeout(resolve, ms)
+    let remaining = Number(ms) || 0
+    let lastTime = Date.now()
+    let timer = null
 
-    signal?.addEventListener?.('abort', () => {
-      clearTimeout(timer)
+    const tick = () => {
+      if (signal?.aborted || ctrl?.signal?.aborted) {
+        if (timer) {
+          clearTimeout(timer)
+        }
+        reject(new Error('STOPPED'))
+        return
+      }
+
+      if (ctrl?.paused) {
+        lastTime = Date.now()
+        timer = setTimeout(tick, 100)
+        return
+      }
+
+      const now = Date.now()
+      const elapsed = now - lastTime
+      lastTime = now
+      remaining -= elapsed
+
+      if (remaining <= 0) {
+        resolve()
+        return
+      }
+
+      timer = setTimeout(tick, Math.min(remaining, 100))
+    }
+
+    tick()
+
+    const onAbort = () => {
+      if (timer) {
+        clearTimeout(timer)
+      }
       reject(new Error('STOPPED'))
-    }, { once: true })
+    }
+
+    signal?.addEventListener?.('abort', onAbort, { once: true })
+    ctrl?.signal?.addEventListener?.('abort', onAbort, { once: true })
   })
 }
 function withTimeout(promise, ms, signal, errorMessage = '指令执行超时') {
@@ -238,6 +280,62 @@ export async function recoverDeviceState({ deviceId, adb, expectedActivity, onLo
   catch {}
 
   return false
+}
+
+export class DeviceStealthManager {
+  constructor(deviceId, adb, onLog) {
+    this.deviceId = deviceId
+    this.adb = adb
+    this.onLog = onLog
+    this.originalIme = null
+    this.applied = false
+  }
+
+  async setup() {
+    if (!this.adb?.deviceShell) {
+      return
+    }
+
+    try {
+      // 1. Record original active Input Method (IME)
+      const currentIme = await this.adb.deviceShell(this.deviceId, 'settings get secure default_input_method').catch(() => null)
+      if (currentIme && !currentIme.includes('ADBKeyboard') && !currentIme.includes('AdbIME')) {
+        this.originalIme = currentIme.trim()
+      }
+
+      this.applied = true
+    }
+    catch (err) {
+      console.warn('[DeviceStealthManager] Setup warning:', err)
+    }
+  }
+
+  async restoreIme() {
+    if (!this.adb?.deviceShell || !this.originalIme) {
+      return
+    }
+    try {
+      await this.adb.deviceShell(this.deviceId, `ime set ${this.originalIme}`).catch(() => {})
+    }
+    catch {}
+  }
+
+  async teardown() {
+    if (!this.applied || !this.adb?.deviceShell) {
+      return
+    }
+
+    try {
+      // Restore original Input Method if needed
+      await this.restoreIme()
+    }
+    catch (err) {
+      console.warn('[DeviceStealthManager] Teardown warning:', err)
+    }
+    finally {
+      this.applied = false
+    }
+  }
 }
 
 const MAIN_ACTIVITY_PATTERNS = [
@@ -540,7 +638,7 @@ async function runWaitFor({ step, deviceId, adb, onLog, signal }) {
 
 const MONITORED_STEP_TYPES = ['tap', 'swipe', 'input', 'wait', 'key', 'launch', 'command', 'install', 'screenshot', 'record', 'findImage', 'waitFor', 'if', 'loop', 'end']
 
-async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null) {
+async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null, stealthManager = null, touchDispatcher = null) {
   switch (step.type) {
     case 'tap': {
       let x, y
@@ -560,10 +658,24 @@ async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null
         y = Number(step.y || 0)
       }
 
-      if (step.randomRange > 0) {
-        // Simulate human finger press duration: 40~150ms with Gaussian variation
-        const pressDuration = Math.round(Math.max(40, 80 + randomGaussian() * step.randomRange * 15))
-        await adb.deviceShell(deviceId, `input swipe ${x} ${y} ${x} ${y} ${pressDuration}`)
+      const randomRange = step.randomRange ?? 2
+      const pressDuration = randomRange > 0
+        ? Math.round(Math.max(40, 80 + randomGaussian() * randomRange * 15))
+        : 50
+
+      if (touchDispatcher) {
+        await touchDispatcher.tap(deviceId, {
+          x,
+          y,
+          randomRange,
+          tapZone: step.tapZone,
+          screenSize,
+          duration: pressDuration,
+        })
+      }
+      else if (randomRange > 0) {
+        const tapData = generateBionicTapPoints({ x, y }, { duration: pressDuration, randomRange, screenSize })
+        await adb.deviceShell(deviceId, `input swipe ${tapData.start.x} ${tapData.start.y} ${tapData.end.x} ${tapData.end.y} ${tapData.duration}`)
       }
       else {
         await adb.deviceShell(deviceId, `input tap ${x} ${y}`)
@@ -571,25 +683,42 @@ async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null
       break
     }
     case 'swipe': {
-      const duration = Number(step.duration || 300)
-      let sx = Number(step.startX || 0)
-      let sy = Number(step.startY || 0)
-      let ex = Number(step.endX || 0)
-      let ey = Number(step.endY || 0)
+      const duration = Number(step.duration || 350)
+      const sx = Number(step.startX || 0)
+      const sy = Number(step.startY || 0)
+      const ex = Number(step.endX || 0)
+      const ey = Number(step.endY || 0)
+      const randomRange = step.randomRange ?? 2
 
-      if (step.randomRange > 0) {
-        // Apply a random start/end offset to mimic natural deviation
-        const offset = Math.ceil(step.randomRange * 5)
-        sx = clampCoord(sx + Math.round((Math.random() * 2 - 1) * offset), screenSize?.width)
-        sy = clampCoord(sy + Math.round((Math.random() * 2 - 1) * offset), screenSize?.height)
-        ex = clampCoord(ex + Math.round((Math.random() * 2 - 1) * offset), screenSize?.width)
-        ey = clampCoord(ey + Math.round((Math.random() * 2 - 1) * offset), screenSize?.height)
+      if (touchDispatcher) {
+        await touchDispatcher.swipe(deviceId, {
+          start: { x: sx, y: sy },
+          end: { x: ex, y: ey },
+          duration,
+          randomRange,
+          screenSize,
+        })
       }
+      else if (randomRange > 0) {
+        const trajectory = generateBionicSwipeTrajectory(
+          { x: sx, y: sy },
+          { x: ex, y: ey },
+          { duration, randomRange, screenSize },
+        )
 
-      await adb.deviceShell(
-        deviceId,
-        `input swipe ${sx} ${sy} ${ex} ${ey} ${duration}`,
-      )
+        const startPt = trajectory[0]
+        const endPt = trajectory[trajectory.length - 1]
+        await adb.deviceShell(
+          deviceId,
+          `input swipe ${startPt.x} ${startPt.y} ${endPt.x} ${endPt.y} ${duration}`,
+        )
+      }
+      else {
+        await adb.deviceShell(
+          deviceId,
+          `input swipe ${sx} ${sy} ${ex} ${ey} ${duration}`,
+        )
+      }
       break
     }
     case 'input': {
@@ -597,7 +726,7 @@ async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null
       let installed = await adb.isInstalledAdbKeyboard?.(deviceId)
 
       if (!installed) {
-        onLog?.({ level: 'info', message: 'ADB Keyboard not found. Attempting auto-install...' })
+        onLog?.({ level: 'info', message: '未检测到 ADB 键盘，正在自动安装支持中文输入...' })
         try {
           await adb.installAdbKeyboard?.(deviceId)
           installed = await adb.isInstalledAdbKeyboard?.(deviceId)
@@ -607,51 +736,52 @@ async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null
         }
       }
 
-      if (installed) {
-        const setIME = await adb.deviceShell(deviceId, 'ime set com.android.adbkeyboard/.AdbIME').catch(e => String(e))
-        let useKeyboard = true
-        if (setIME && (setIME.includes('SecurityException') || setIME.includes('Error') || setIME.includes('permission'))) {
-          onLog?.({
-            level: 'warning',
-            message: `设置 ADB 键盘被系统拦截 (${setIME.trim().split('\n')[0]})，将尝试使用剪贴板粘贴功能进行输入`,
-          })
-          useKeyboard = false
-        }
+      let inputSuccess = false
 
-        if (useKeyboard) {
+      if (installed) {
+        try {
+          await adb.deviceShell(deviceId, 'ime enable com.android.adbkeyboard/.AdbIME').catch(() => {})
+          await adb.deviceShell(deviceId, 'ime set com.android.adbkeyboard/.AdbIME').catch(() => {})
+          await sleep(150, signal) // 等待输入法与焦点激活绑定
+
           if (step.randomRange > 0 && text.length > 1) {
             for (let i = 0; i < text.length; i++) {
-              if (signal?.aborted)
+              if (signal?.aborted) {
                 break
+              }
               const char = text[i]
               const encoded = encodeUtf8Base64(char)
-              await adb.deviceShell(deviceId, `am broadcast -a ADB_INPUT_B64 --es msg ${encoded}`).catch(() => {})
+              await adb.deviceShell(deviceId, `am broadcast -a ADB_INPUT_B64 --es msg "${encoded}"`).catch(() => {})
               const delay = Math.max(50, 120 + (Math.random() * 2 - 1) * step.randomRange * 30)
               await sleep(delay, signal)
             }
           }
           else {
             const encoded = encodeUtf8Base64(text)
-            const broadcastRes = await adb.deviceShell(deviceId, `am broadcast -a ADB_INPUT_B64 --es msg ${encoded}`).catch(e => String(e))
-            if (broadcastRes && !broadcastRes.includes('Broadcast completed')) {
-              onLog?.({ level: 'info', message: `发送广播结果: ${broadcastRes.trim()}` })
-            }
+            await adb.deviceShell(deviceId, `am broadcast -a ADB_INPUT_B64 --es msg "${encoded}"`).catch(() => {})
           }
-          break
+          inputSuccess = true
+          onLog?.({ level: 'info', message: `✍️ 已通过 ADB 键盘输入文本: "${text}"` })
+        }
+        catch (err) {
+          console.warn('ADB Keyboard input error:', err)
         }
       }
 
-      // Clipboard fallback
-      onLog?.({ level: 'info', message: '正在尝试通过剪贴板写入并粘贴...' })
-      try {
-        const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$')
-        await adb.deviceShell(deviceId, `cmd clipboard set "${escaped}"`)
-        await sleep(200, signal) // Small delay to let clipboard sync
-        await adb.deviceShell(deviceId, 'input keyevent 279')
-      }
-      catch (err) {
-        onLog?.({ level: 'warning', message: `剪贴板粘贴失败: ${err.message || err}，尝试原生输入法...` })
-        await adb.deviceShell(deviceId, `input text ${escapeInputText(text)}`)
+      if (!inputSuccess) {
+        // Clipboard fallback
+        onLog?.({ level: 'info', message: '正在尝试通过剪贴板写入并粘贴...' })
+        try {
+          const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$')
+          await adb.deviceShell(deviceId, `cmd clipboard set "${escaped}"`)
+          await sleep(200, signal)
+          await adb.deviceShell(deviceId, 'input keyevent 279')
+          onLog?.({ level: 'info', message: `✍️ 已通过剪贴板粘贴文本: "${text}"` })
+        }
+        catch (err) {
+          onLog?.({ level: 'warning', message: `剪贴板粘贴失败: ${err.message || err}，尝试原生输入法...` })
+          await adb.deviceShell(deviceId, `input text ${escapeInputText(text)}`)
+        }
       }
       break
     }
@@ -802,6 +932,12 @@ export function createRunner() {
     controller.signal = controller.abortController.signal
     controller.paused = false
     controller.status = RunnerStatus.RUNNING
+    currentActiveController = controller
+
+    const stealthManager = new DeviceStealthManager(deviceId, adb, onLog)
+    await stealthManager.setup()
+
+    const touchDispatcher = new SmartTouchDispatcher({ adb, onLog })
 
     let isAligningContext = false
     let targetPackageName = ''
@@ -1177,36 +1313,39 @@ export function createRunner() {
                 loopStep.endY = Math.round(loopStep.endYPercent * targetH)
               }
             }
-            else if (scaleX !== 1 || scaleY !== 1) {
-              // Priority 2: Scale absolute coordinates from reference resolution to target resolution
-              if (loopStep.x != null) {
-                loopStep.x = scaleCoord(loopStep.x, 'x')
-              }
-              if (loopStep.y != null) {
-                loopStep.y = scaleCoord(loopStep.y, 'y')
-              }
-              if (loopStep.startX != null) {
-                loopStep.startX = scaleCoord(loopStep.startX, 'x')
-              }
-              if (loopStep.startY != null) {
-                loopStep.startY = scaleCoord(loopStep.startY, 'y')
-              }
-              if (loopStep.endX != null) {
-                loopStep.endX = scaleCoord(loopStep.endX, 'x')
-              }
-              if (loopStep.endY != null) {
-                loopStep.endY = scaleCoord(loopStep.endY, 'y')
-              }
-              // Also scale tapZone coordinates if present
-              if (loopStep.tapZone) {
-                if (loopStep.tapZone.x1 != null)
-                  loopStep.tapZone.x1 = scaleCoord(loopStep.tapZone.x1, 'x')
-                if (loopStep.tapZone.y1 != null)
-                  loopStep.tapZone.y1 = scaleCoord(loopStep.tapZone.y1, 'y')
-                if (loopStep.tapZone.x2 != null)
-                  loopStep.tapZone.x2 = scaleCoord(loopStep.tapZone.x2, 'x')
-                if (loopStep.tapZone.y2 != null)
-                  loopStep.tapZone.y2 = scaleCoord(loopStep.tapZone.y2, 'y')
+            else {
+              const stepScaleX = (screenSize && loopStep.baseWidth) ? (screenSize.width / loopStep.baseWidth) : scaleX
+              const stepScaleY = (screenSize && loopStep.baseHeight) ? (screenSize.height / loopStep.baseHeight) : scaleY
+
+              if (stepScaleX !== 1 || stepScaleY !== 1) {
+                if (loopStep.x != null) {
+                  loopStep.x = Math.round(loopStep.x * stepScaleX)
+                }
+                if (loopStep.y != null) {
+                  loopStep.y = Math.round(loopStep.y * stepScaleY)
+                }
+                if (loopStep.startX != null) {
+                  loopStep.startX = Math.round(loopStep.startX * stepScaleX)
+                }
+                if (loopStep.startY != null) {
+                  loopStep.startY = Math.round(loopStep.startY * stepScaleY)
+                }
+                if (loopStep.endX != null) {
+                  loopStep.endX = Math.round(loopStep.endX * stepScaleX)
+                }
+                if (loopStep.endY != null) {
+                  loopStep.endY = Math.round(loopStep.endY * stepScaleY)
+                }
+                if (loopStep.tapZone) {
+                  if (loopStep.tapZone.x1 != null)
+                    loopStep.tapZone.x1 = Math.round(loopStep.tapZone.x1 * stepScaleX)
+                  if (loopStep.tapZone.y1 != null)
+                    loopStep.tapZone.y1 = Math.round(loopStep.tapZone.y1 * stepScaleY)
+                  if (loopStep.tapZone.x2 != null)
+                    loopStep.tapZone.x2 = Math.round(loopStep.tapZone.x2 * stepScaleX)
+                  if (loopStep.tapZone.y2 != null)
+                    loopStep.tapZone.y2 = Math.round(loopStep.tapZone.y2 * stepScaleY)
+                }
               }
             }
           }
@@ -1307,7 +1446,7 @@ export function createRunner() {
 
           try {
             const stepResult = await withTimeout(
-              executeStep(deviceId, loopStep, adb, controller.signal, onLog, screenSize),
+              executeStep(deviceId, loopStep, adb, controller.signal, onLog, screenSize, stealthManager, touchDispatcher),
               stepTimeout,
               controller.signal,
               `步骤 [${loopStep.name || loopStep.type}] 执行超时 (${stepTimeout / 1000}s)`,
@@ -1393,6 +1532,8 @@ export function createRunner() {
       throw error
     }
     finally {
+      currentActiveController = null
+      await stealthManager.teardown()
       stopMonitor()
       try {
         await monitorPromise

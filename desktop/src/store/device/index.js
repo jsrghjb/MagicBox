@@ -4,7 +4,6 @@ import { capitalize } from 'lodash-es'
 import { name as packageName } from '$root/package.json'
 import {
   getCurrentDevices,
-  getHistoryDevices,
   mergeDevices,
   saveDevicesToStore,
 } from './helpers/index.js'
@@ -61,9 +60,8 @@ export const useDeviceStore = defineStore('app-device', () => {
   }
 
   async function getList(deviceLimit) {
-    const historyDevices = getHistoryDevices()
     const currentDevices = await getCurrentDevices()
-    const mergedDevices = mergeDevices(historyDevices, currentDevices)
+    const mergedDevices = mergeDevices([], currentDevices)
     saveDevicesToStore(mergedDevices)
 
     // 许可证设备数量限制（仅当传入 deviceLimit 时生效，undefined 表示不限制）
@@ -77,8 +75,22 @@ export const useDeviceStore = defineStore('app-device', () => {
     return limitedDevices
   }
 
-  function setRemark(deviceId, value) {
+  function setRemark(deviceId, value, serialNo) {
+    if (!deviceId) {
+      return
+    }
     $electronStore.set(['device', deviceId, 'remark'], value)
+
+    const targetSerial = serialNo || list.value.find(d => d.id === deviceId)?.serialNo
+    if (targetSerial && targetSerial !== deviceId) {
+      $electronStore.set(['device', targetSerial, 'remark'], value)
+    }
+
+    const item = list.value.find(d => d.id === deviceId || (targetSerial && d.serialNo === targetSerial))
+    if (item) {
+      item.remark = value
+    }
+
     init()
   }
 

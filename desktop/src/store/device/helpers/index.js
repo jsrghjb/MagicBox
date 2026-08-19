@@ -35,17 +35,19 @@ export function getHistoryDevices() {
 export async function getCurrentDevices() {
   const devices = (await window.$preload.adb.getDeviceList()) || []
 
-  return devices.map((device) => {
-    const remark = getRemark(device.id, device.serialNo)
-    return {
-      ...device,
-      id: device.id,
-      status: device.type,
-      name: getDeviceName(device),
-      wifi: ([':', '_adb-tls-connect']).some(item => device.id.includes(item)),
-      remark,
-    }
-  })
+  return devices
+    .filter(device => device && !['offline'].includes(device.type) && !['offline'].includes(device.status))
+    .map((device) => {
+      const remark = getRemark(device.id, device.serialNo)
+      return {
+        ...device,
+        id: device.id,
+        status: device.type,
+        name: getDeviceName(device),
+        wifi: ([':', '_adb-tls-connect']).some(item => device.id.includes(item)),
+        remark,
+      }
+    })
 }
 
 export const deviceSortModel = deviceStatusDict.reduce((obj, item, index) => {
@@ -54,37 +56,55 @@ export const deviceSortModel = deviceStatusDict.reduce((obj, item, index) => {
 }, {})
 
 /**
- * Merge history and current device lists by physical hardware serialNo
- * @param {Array} historyDevices - History devices list
+ * Merge and deduplicate current device list by physical hardware serialNo.
+ * Offline devices are strictly excluded from the list.
+ *
+ * @param {Array} historyDevices - History devices (unused for offline injection)
  * @param {Array} currentDevices - Current devices list
- * @returns {Array} Merged device list
+ * @returns {Array} Deduplicated active device list
  */
 export function mergeDevices(historyDevices, currentDevices) {
+  const activeDevices = Array.isArray(currentDevices)
+    ? currentDevices
+    : (Array.isArray(historyDevices) ? historyDevices : [])
+
   const mergedMap = new Map()
 
-  // 1. Current active devices take highest priority
-  currentDevices.forEach((curr) => {
-    const key = curr.serialNo || curr.id
-    mergedMap.set(key, { ...curr })
-  })
+  activeDevices.forEach((curr) => {
+    if (!curr || ['offline'].includes(curr.status) || ['offline'].includes(curr.type)) {
+      return
+    }
 
-  // 2. Merge history records by serialNo
-  historyDevices.forEach((hist) => {
-    const key = hist.serialNo || hist.id
+    // Key by physical serialNo if available and valid, otherwise fallback to id
+    const serialKey = curr.serialNo && curr.serialNo !== 'unknown' ? curr.serialNo : null
+    const key = serialKey || curr.id
+
     if (mergedMap.has(key)) {
-      const active = mergedMap.get(key)
+      const existing = mergedMap.get(key)
+      // Prioritize USB connection over WiFi if both are connected simultaneously
+      const preferCurrent = !curr.wifi && existing.wifi
+      const primary = preferCurrent ? curr : existing
+      const secondary = preferCurrent ? existing : curr
+
+      const historyIps = [
+        ...(primary.historyIps || []),
+        ...(secondary.historyIps || []),
+        primary.id,
+        secondary.id,
+      ].filter(id => id && (id.includes(':') || id.includes('.')))
+
       mergedMap.set(key, {
-        ...hist,
-        ...active,
-        historyIps: [...new Set([...(hist.historyIps || []), hist.id, active.id])].filter(Boolean),
-        remark: active.remark || hist.remark,
+        ...secondary,
+        ...primary,
+        historyIps: [...new Set(historyIps)],
+        remark: primary.remark || secondary.remark || getRemark(primary.id, primary.serialNo),
       })
     }
     else {
       mergedMap.set(key, {
-        ...hist,
-        status: 'offline',
-        type: 'offline',
+        ...curr,
+        historyIps: curr.wifi ? [curr.id] : (curr.historyIps || []),
+        remark: curr.remark || getRemark(curr.id, curr.serialNo),
       })
     }
   })
@@ -100,29 +120,31 @@ export function mergeDevices(historyDevices, currentDevices) {
 }
 
 /**
- * Save device information to store
+ * Save device metadata to store without persisting offline ghost devices
  */
 export function saveDevicesToStore(devices) {
-  const removedIds = window.$preload.store.get('removedDeviceIds') || []
+  const store = window.$preload.store.get('device') || {}
+  const storeMap = { ...store }
 
-  const cleanedDevices = devices
-    .filter(device => !['unauthorized'].includes(device.status))
-    .filter((device) => {
-      const key = device.id || device.serialNo
-      return !removedIds.includes(key) && !removedIds.includes(device.serialNo)
-    })
-    .map(device => ({
-      ...device,
-      status: 'offline',
-      type: 'offline',
-    }))
-
-  const storeMap = {}
-  cleanedDevices.forEach((dev) => {
+  devices.forEach((dev) => {
+    if (!dev || ['offline'].includes(dev.status)) {
+      return
+    }
     const key = dev.id || dev.serialNo
-    storeMap[key] = dev
+    if (key) {
+      storeMap[key] = {
+        ...(storeMap[key] || {}),
+        remark: dev.remark || storeMap[key]?.remark,
+        name: dev.name || storeMap[key]?.name,
+        serialNo: dev.serialNo || storeMap[key]?.serialNo,
+      }
+    }
     if (dev.serialNo && dev.serialNo !== dev.id) {
-      storeMap[dev.serialNo] = dev
+      storeMap[dev.serialNo] = {
+        ...(storeMap[dev.serialNo] || {}),
+        remark: dev.remark || storeMap[dev.serialNo]?.remark,
+        name: dev.name || storeMap[dev.serialNo]?.name,
+      }
     }
   })
 

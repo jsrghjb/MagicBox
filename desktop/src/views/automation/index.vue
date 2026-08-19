@@ -32,7 +32,6 @@
           ]"
           @click="handleCategoryFilterClick(cat)"
         >
-          <span v-if="!licenseStore.checkCategoryAccess(cat.id)" class="text-amber-500 font-bold">🔒</span>
           <span>{{ cat.label }}</span>
         </button>
       </div>
@@ -58,19 +57,28 @@
 
       <div class="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
         <template v-if="currentScript">
-          <div class="flex items-center gap-3 flex-none">
-            <span class="text-sm text-gray-500 flex-none whitespace-nowrap">{{ $t('automation.script.name') }}</span>
+          <div class="flex items-center justify-between gap-3 flex-none bg-gray-50/70 dark:bg-gray-900/50 p-2 rounded-xl border border-gray-200/60 dark:border-gray-800/60 min-w-0">
+            <!-- 左侧: 脚本名称 -->
             <el-input
               v-model="currentScript.name"
-              class="w-36"
-            />
+              placeholder="请输入脚本名称"
+              clearable
+              style="width: 380px; min-width: 260px; max-width: 480px;"
+              class="!w-96 flex-none"
+            >
+              <template #prefix>
+                <i class="i-bi-pencil-square text-gray-400 text-sm"></i>
+              </template>
+            </el-input>
+
+            <!-- 右侧: 运行与控制工具栏 -->
             <RunToolbar
               class="flex-none"
-              :status="automationStore.runnerStatus"
-              :has-script="true"
+              :status="automationStore.runningScriptId === currentScript?.id ? automationStore.runnerStatus : 'idle'"
+              :has-script="Boolean(currentScript)"
               :has-steps="Boolean(currentScript?.steps?.length)"
               :has-selection="selectedStepIds.length > 0"
-              :has-breakpoint="Boolean(automationStore.breakpointSnapshot)"
+              :has-breakpoint="Boolean(automationStore.breakpointSnapshot && automationStore.breakpointSnapshot.scriptId === currentScript?.id)"
               :breakpoint-index="automationStore.breakpointSnapshot?.stepIndex ?? 0"
               @run-all="handleRunAll"
               @run-selected="handleRunSelected"
@@ -145,7 +153,7 @@
             </el-button>
             <el-button
               @click="async () => {
-                try { await handleCreateScript({ deviceId }) }
+                try { await handleCreateScript({ deviceId: 'common' }) }
                 catch (error) { console.error('Failed to create script:', error); ElMessage.error(error.message || String(error)) }
               }"
             >
@@ -210,40 +218,84 @@ const licenseStore = useLicenseStore()
 
 const selectedCategory = ref('all')
 const categories = [
-  { id: 'all', label: '全部' },
-  { id: 'general', label: '通用基础' },
-  { id: 'xiaohongshu', label: '小红书' },
-  { id: 'douyin', label: '抖音/TikTok' },
-  { id: 'wechat', label: '微信/视频号' },
-  { id: 'ecommerce', label: '跨境电商' },
-  { id: 'custom', label: '自定义' },
+  { id: 'all', label: '🌟 全部' },
+  { id: 'general', label: '⚡ 基础日常' },
+  { id: 'social', label: '💬 社交通讯' },
+  { id: 'media', label: '🎬 视频图文' },
+  { id: 'ecommerce', label: '🛍️ 电商营销' },
+  { id: 'game', label: '🎮 游戏日常' },
+  { id: 'system', label: '⚙️ 系统工具' },
+  { id: 'custom', label: '📁 自定义' },
 ]
+
+const categoryLabels = {
+  general: '基础日常',
+  social: '社交通讯',
+  media: '视频图文',
+  ecommerce: '电商营销',
+  game: '游戏日常',
+  system: '系统工具',
+  custom: '自定义',
+}
 
 function handleCategoryFilterClick(cat) {
   selectedCategory.value = cat.id
-  if (cat.id !== 'all' && !licenseStore.checkCategoryAccess(cat.id)) {
-    licenseStore.openUpgradeModal(cat.id)
-  }
 }
+
 const selectedDeviceId = ref(null)
 const onlineDevices = computed(() => deviceStore.list.filter(d => d.status === 'device'))
 const deviceId = computed(() => selectedDeviceId.value || '')
 
 const editor = useAutomationEditor(deviceId)
 const { state, actions, runs } = editor
-const { scripts, currentScript, selectedStepIds, templateDialogVisible, batchDialogVisible, aiDialogVisible, recorderVisible, recorderMode, isRunning, selectedStep, automationStore } = state
+const { scripts, currentScript, selectedStepIds, templateDialogVisible, batchDialogVisible, aiDialogVisible, recorderVisible, recorderMode, isRunning, selectedStep, automationStore, updateScript } = state
 const { handleCreateScript, handleSelectScript, handleDeleteScript, handleSelectStep, handleAddStep, handleRemoveStep, handleMoveStepUp, handleMoveStepDown, handleReorderSteps, handleInsertStepBefore, handleInsertStepAfter, handleUpdateStep, handleUpdateVars } = actions
 const { openMacroRecorder, handleMacroRecordConfirm, handleImportScript, handleExportScript, handleApplyTemplate, handleTemplateApply, handleAiGenerate, handleAiApply, handleRunAll, handleRunSingleStep, handleRunSelected, handleResumeFromBreakpoint } = runs
 
+async function handleCategoryChange(cat) {
+  if (currentScript.value?.id) {
+    currentScript.value.category = cat
+    try {
+      await updateScript(currentScript.value.id, { category: cat })
+      ElMessage.success(`已切换分类至 [${categoryLabels[cat] || cat}]`)
+    }
+    catch (err) {
+      console.error(err)
+      ElMessage.error('切换分类失败')
+    }
+  }
+}
+
 onMounted(async () => {
   await deviceStore.getList()
-  if (onlineDevices.value.length > 0) {
-    selectedDeviceId.value = onlineDevices.value[0].id
-  }
-  if (scripts.value?.length > 0 && !currentScript.value) {
-    handleSelectScript(scripts.value[0])
-  }
 })
+
+watch(
+  () => onlineDevices.value,
+  (devices) => {
+    if (devices.length > 0) {
+      if (!selectedDeviceId.value || !devices.some(d => d.id === selectedDeviceId.value)) {
+        selectedDeviceId.value = devices[0].id
+      }
+    }
+    else {
+      selectedDeviceId.value = null
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => scripts.value,
+  (list) => {
+    if (list?.length > 0) {
+      if (!currentScript.value || !list.some(s => s.id === currentScript.value.id)) {
+        handleSelectScript(list[0])
+      }
+    }
+  },
+  { immediate: true },
+)
 
 const deviceName = computed(() => deviceStore.getLabel(deviceId.value, 'name'))
 

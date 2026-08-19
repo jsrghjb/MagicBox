@@ -144,27 +144,20 @@
                 @update:model-value="update('y', $event)"
               />
               <el-button type="primary" plain size="small" class="flex-none" @click="openPicker('tap')">
+                <i class="i-bi-crosshair mr-1"></i>
                 {{ $t('automation.picker.screenshot') }}
               </el-button>
             </div>
           </el-form-item>
-          <el-form-item :label="$t('automation.step.tapZone')">
-            <div class="flex items-center gap-2 w-full">
-              <div
-                v-if="step.tapZone"
-                class="flex-1 text-xs text-blue-500 bg-blue-50 dark:bg-blue-900 rounded px-2 py-1 leading-relaxed"
-              >
-                {{ Math.abs(step.tapZone.x2 - step.tapZone.x1) }}×{{ Math.abs(step.tapZone.y2 - step.tapZone.y1) }}px
-                &nbsp;·&nbsp;
-                {{ $t('automation.picker.center') }} ({{ Math.round((step.tapZone.x1 + step.tapZone.x2) / 2) }}, {{ Math.round((step.tapZone.y1 + step.tapZone.y2) / 2) }})
+          <el-form-item v-if="step.tapZone" label="随机区域">
+            <div class="flex items-center justify-between gap-2 w-full bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/50 dark:border-blue-800/40 rounded-lg px-2.5 py-1 text-xs text-blue-600 dark:text-blue-400">
+              <div class="flex items-center gap-1.5 truncate">
+                <i class="i-bi-bounding-box text-sm flex-none"></i>
+                <span class="truncate">
+                  范围: {{ Math.abs(step.tapZone.x2 - step.tapZone.x1) }}×{{ Math.abs(step.tapZone.y2 - step.tapZone.y1) }}px (随机防风控)
+                </span>
               </div>
-              <span v-else class="flex-1 text-xs text-gray-400">{{ $t('automation.step.tapZone.hint') }}</span>
-              <el-button type="success" plain size="small" class="flex-none" @click="openPicker('tapZone')">
-                {{ $t('automation.step.tapZone.draw') }}
-              </el-button>
-              <el-button v-if="step.tapZone" type="danger" plain size="small" class="flex-none" @click="update('tapZone', null)">
-                {{ $t('automation.step.tapZone.clear') }}
-              </el-button>
+              <el-button text circle size="small" icon="Close" class="text-gray-400 hover:!text-red-500 flex-none !p-1" title="清除随机区域，恢复单点坐标" @click="update('tapZone', null)" />
             </div>
           </el-form-item>
         </template>
@@ -525,9 +518,15 @@ function onTypeChange(type) {
   emit('update', { ...defaults, id: props.step.id, name: props.step.name })
 }
 
+const deviceStore = useDeviceStore()
+
 function openPicker(mode) {
-  if (!props.deviceId) {
-    ElMessage.warning(window.t('automation.run.noDevice'))
+  const targetId = props.deviceId && props.deviceId !== 'common' && props.deviceId !== 'device_exclusive'
+    ? props.deviceId
+    : (deviceStore.list.find(d => d.status === 'device')?.id || deviceStore.list[0]?.id)
+
+  if (!targetId) {
+    ElMessage.warning('未检测到可用的连接设备，请先连接设备！')
     return
   }
   pickerMode.value = mode
@@ -536,10 +535,13 @@ function openPicker(mode) {
 
 function handlePickerConfirm(result) {
   if (pickerMode.value === 'tap') {
-    emit('update', { x: result.x, y: result.y })
-  }
-  else if (pickerMode.value === 'tapZone') {
-    emit('update', { x: result.x, y: result.y, tapZone: result.tapZone })
+    emit('update', {
+      x: result.x,
+      y: result.y,
+      tapZone: result.tapZone || null,
+      baseWidth: result.baseWidth || null,
+      baseHeight: result.baseHeight || null,
+    })
   }
   else if (pickerMode.value === 'swipe') {
     emit('update', {
@@ -547,6 +549,8 @@ function handlePickerConfirm(result) {
       startY: result.startY,
       endX: result.endX,
       endY: result.endY,
+      baseWidth: result.baseWidth || null,
+      baseHeight: result.baseHeight || null,
     })
   }
   pickerVisible.value = false

@@ -9,10 +9,17 @@
       从断点恢复 (第{{ (breakpointIndex ?? 0) + 1 }}步)
     </el-button>
 
-    <el-button type="primary" :disabled="!hasScript || !hasSteps" @click="$emit('run-all')">
+    <el-button
+      type="primary"
+      :disabled="!hasScript || !hasSteps || status === 'running'"
+      @click="$emit('run-all')"
+    >
       {{ $t('automation.run.all') }}
     </el-button>
-    <el-button :disabled="!hasSelection" @click="$emit('run-selected')">
+    <el-button
+      :disabled="!hasScript || !hasSteps || !hasSelection || status === 'running'"
+      @click="$emit('run-selected')"
+    >
       {{ $t('automation.run.selected') }}
     </el-button>
 
@@ -26,13 +33,15 @@
       {{ $t('automation.run.stop') }}
     </el-button>
 
-    <el-tag>
+    <el-tag :type="tagType">
       {{ statusLabel }}
     </el-tag>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   status: {
     type: String,
@@ -60,5 +69,18 @@ const statusLabel = computed(() => {
   }
   const key = map[props.status] || map.idle
   return key.startsWith('automation.') ? window.t(key) : key
+})
+
+const tagType = computed(() => {
+  switch (props.status) {
+    case 'running':
+      return 'primary'
+    case 'paused':
+      return 'warning'
+    case 'interrupted':
+      return 'danger'
+    default:
+      return 'info'
+  }
 })
 </script>

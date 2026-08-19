@@ -11,6 +11,9 @@ import { getEffectiveMaxVideoSize } from '@escrcpy/cluster-control/preference-vi
 import { H264StreamParser } from '@escrcpy/cluster-control/h264-stream.js'
 import {
   mapPercentToVideoPoint,
+  MOTION_EVENT_ACTION_DOWN,
+  MOTION_EVENT_ACTION_MOVE,
+  MOTION_EVENT_ACTION_UP,
   serializeInjectScrollEvent,
   serializeInjectTouchEvent,
   touchActionFromName,
@@ -618,6 +621,85 @@ ipcMain.handle('cluster-control:input', (event, gesture) => {
     injectAdbGesture(instance.serial, instance.deviceInfo, gesture)
 
   return { success: true, count: resolveTargets(gesture.sourceSerial, broadcast).length }
+})
+
+ipcMain.handle('cluster-control:hasControl', (_event, serial) => {
+  if (!serial)
+    return { connected: false }
+  const client = controlClients.get(serial)
+  return { connected: Boolean(client && !client.destroyed) }
+})
+
+/**
+ * 注入高精度贝塞尔触控轨迹流（Scrcpy Socket 直连）
+ */
+ipcMain.handle('cluster-control:injectTrajectory', async (_event, payload) => {
+  const { serial, trajectory, duration = 300 } = payload || {}
+  if (!serial || !trajectory?.length) {
+    return { success: false, reason: 'invalid_params' }
+  }
+
+  const control = controlClients.get(serial)
+  if (control && !control.destroyed) {
+    const device = runningInstances.find(i => i.serial === serial)?.deviceInfo
+    const streamSize = deviceStreamSizes.get(serial)
+    const videoW = streamSize?.width || device?.width || 1080
+    const videoH = streamSize?.height || device?.height || 1920
+
+    try {
+      // 1. 发送按下 DOWN 事件
+      const pStart = trajectory[0]
+      control.write(serializeInjectTouchEvent({
+        action: MOTION_EVENT_ACTION_DOWN,
+        x: pStart.x,
+        y: pStart.y,
+        screenWidth: videoW,
+        screenHeight: videoH,
+        pressure: pStart.pressure || 0.8,
+      }))
+
+      // 2. 毫秒级流式下发贝塞尔中间插值点 MOVE 事件
+      for (let i = 1; i < trajectory.length - 1; i++) {
+        const pt = trajectory[i]
+        const prevPt = trajectory[i - 1]
+        const delay = Math.max(1, (pt.timeOffset || 0) - (prevPt.timeOffset || 0))
+        if (delay > 0) {
+          await new Promise(resolve => setTimeout(resolve, delay))
+        }
+        control.write(serializeInjectTouchEvent({
+          action: MOTION_EVENT_ACTION_MOVE,
+          x: pt.x,
+          y: pt.y,
+          screenWidth: videoW,
+          screenHeight: videoH,
+          pressure: pt.pressure || 0.7,
+        }))
+      }
+
+      // 3. 发送抬起 UP 事件
+      const pEnd = trajectory[trajectory.length - 1]
+      const lastDelay = Math.max(1, (pEnd.timeOffset || 0) - (trajectory[trajectory.length - 2]?.timeOffset || 0))
+      if (lastDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, lastDelay))
+      }
+      control.write(serializeInjectTouchEvent({
+        action: MOTION_EVENT_ACTION_UP,
+        x: pEnd.x,
+        y: pEnd.y,
+        screenWidth: videoW,
+        screenHeight: videoH,
+        pressure: 0,
+      }))
+
+      return { success: true, channel: 'scrcpy_socket' }
+    }
+    catch (err) {
+      safeLog('warn', `[cluster-control][${serial}] injectTrajectory error:`, err?.message || err)
+      return { success: false, fallback: true }
+    }
+  }
+
+  return { success: false, channel: 'none' }
 })
 
 ipcMain.on('cluster-control:broadcast-input', (event, eventData) => {

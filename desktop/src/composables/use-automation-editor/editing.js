@@ -8,6 +8,7 @@ export function useAutomationEditorActions(ctx) {
   function handleCreateScript(extra = {}) {
     return ctx.createScript({
       deviceId: extra.deviceId || 'common',
+      category: extra.category || 'general',
       name: extra.name || `${window.t('automation.script.new')} ${ctx.scripts.value.length + 1}`,
       steps: [createDefaultStep('wait')],
       vars: {},
@@ -19,8 +20,17 @@ export function useAutomationEditorActions(ctx) {
   }
 
   function handleSelectScript(script) {
+    if (!script) {
+      ctx.currentScript.value = null
+      ctx.automationStore.currentScriptId = null
+      ctx.automationStore.selectedStepId = null
+      ctx.selectedStepIds.value = []
+      return
+    }
     ctx.currentScript.value = { ...script }
+    ctx.automationStore.currentScriptId = script.id
     ctx.automationStore.selectedStepId = script.steps?.[0]?.id || null
+    ctx.selectedStepIds.value = script.steps?.[0]?.id ? [script.steps[0].id] : []
   }
 
   async function handleDeleteScript(script) {

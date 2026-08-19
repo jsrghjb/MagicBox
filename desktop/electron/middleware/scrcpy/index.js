@@ -1,3 +1,4 @@
+import { exec } from 'node:child_process'
 import { electronAPI } from '@electron-toolkit/preload'
 import { sheller } from '$electron/helpers/shell/index.js'
 import commandHelper from '$renderer/utils/command/index.js'
@@ -20,10 +21,16 @@ function normalizeScrcpyError(error) {
 function createScrcpyProcess(command, options = {}) {
   let scrcpyProcess = null
 
+  const env = {
+    ...(process.platform === 'darwin' ? { SDL_MAC_BACKGROUND_APP: '1' } : {}),
+    ...options.env,
+  }
+
   scrcpyProcess = sheller(`scrcpy ${command}`, {
     shell: true,
     encoding: 'utf8',
     ...options,
+    env,
     stderr: (data) => {
       options?.stderr?.(data, scrcpyProcess)
       console.error('scrcpyProcess.stderr.data:', data)
@@ -41,14 +48,65 @@ function createScrcpyProcess(command, options = {}) {
   })
 }
 
+const activeMirrors = new Map()
+
+function isMirrorRunning(proc) {
+  return proc && !proc.killed && proc.exitCode === null
+}
+
+function bringScrcpyToFront() {
+  if (process.platform !== 'darwin') {
+    return
+  }
+
+  exec(`osascript -e 'tell application "System Events" to try to set frontmost of (every process whose name is "scrcpy") to true end try'`, () => {})
+}
+
 function createMirrorProcess(
   serial,
   { title, args = '', ...options } = {},
 ) {
-  return createScrcpyProcess(
-    `--serial="${serial}" --window-title="${title}" ${args}`,
+  const existingProcess = activeMirrors.get(serial)
+  if (isMirrorRunning(existingProcess)) {
+    console.warn(`[scrcpy] Mirror process for device ${serial} is already running.`)
+    bringScrcpyToFront()
+    return existingProcess
+  }
+
+  let finalArgs = args || ''
+  if (!finalArgs.includes('--always-on-top')) {
+    finalArgs = `--always-on-top ${finalArgs}`.trim()
+  }
+
+  const scrcpyProcess = createScrcpyProcess(
+    `--serial="${serial}" --window-title="${title}" ${finalArgs}`,
     options,
   )
+
+  activeMirrors.set(serial, scrcpyProcess)
+
+  // Bring window to front once SDL creates the window
+  if (process.platform === 'darwin') {
+    const timers = [
+      setTimeout(() => bringScrcpyToFront(), 300),
+      setTimeout(() => bringScrcpyToFront(), 800),
+      setTimeout(() => bringScrcpyToFront(), 1500),
+    ]
+
+    scrcpyProcess.once('close', () => timers.forEach(t => clearTimeout(t)))
+  }
+
+  const cleanup = () => {
+    if (activeMirrors.get(serial) === scrcpyProcess) {
+      activeMirrors.delete(serial)
+    }
+  }
+
+  scrcpyProcess.once('close', cleanup)
+  scrcpyProcess.once('exit', cleanup)
+  scrcpyProcess.once('error', cleanup)
+
+  return scrcpyProcess
 }
 
 async function shell(...args) {
@@ -195,7 +253,20 @@ async function launch(serial, args = {}) {
   })
 }
 
+function isMirroring(serial) {
+  return isMirrorRunning(activeMirrors.get(serial))
+}
+
+async function stopMirror(serial) {
+  const proc = activeMirrors.get(serial)
+  if (proc) {
+    activeMirrors.delete(serial)
+    return proc.kill?.()
+  }
+}
+
 async function killProcesses() {
+  activeMirrors.clear()
   return processManager.kill()
 }
 
@@ -210,4 +281,6 @@ export default {
   getDisplayIds,
   getCameraList,
   killProcesses,
+  isMirroring,
+  stopMirror,
 }

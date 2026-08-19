@@ -36,16 +36,34 @@ export function useAutomationEditorState(deviceIdRef) {
     }
     await updateScript(currentScript.value.id, {
       name: currentScript.value.name,
+      deviceId: currentScript.value.deviceId || 'common',
+      category: currentScript.value.category || 'general',
       steps: currentScript.value.steps,
       vars: currentScript.value.vars,
       referenceScreenWidth: currentScript.value.referenceScreenWidth,
       referenceScreenHeight: currentScript.value.referenceScreenHeight,
     })
-  }, 500)
+  }, 300)
 
   watch(
-    () => [currentScript.value?.name, currentScript.value?.steps, currentScript.value?.vars, currentScript.value?.referenceScreenWidth, currentScript.value?.referenceScreenHeight],
-    () => debouncedSave(),
+    () => [
+      currentScript.value?.name,
+      currentScript.value?.deviceId,
+      currentScript.value?.category,
+      currentScript.value?.steps,
+      currentScript.value?.vars,
+      currentScript.value?.referenceScreenWidth,
+      currentScript.value?.referenceScreenHeight,
+    ],
+    () => {
+      if (currentScript.value?.id && currentScript.value?.name) {
+        const item = scripts.value.find(s => s.id === currentScript.value.id)
+        if (item && item.name !== currentScript.value.name) {
+          item.name = currentScript.value.name
+        }
+      }
+      debouncedSave()
+    },
     { deep: true },
   )
 

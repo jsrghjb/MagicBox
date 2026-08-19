@@ -7,8 +7,8 @@ import { useDeviceStore } from '$/store/device/index.js'
 
 export const useAutomationStore = defineStore('app-automation', () => {
   const currentScriptId = ref(null)
+  const runningScriptId = ref(null)
   const selectedStepId = ref(null)
-  const logs = ref([])
   const runnerStatus = ref(RunnerStatus.IDLE)
   const runningStepIndex = ref(-1)
   const breakpointSnapshot = ref(loadPersistedBreakpoint())
@@ -54,17 +54,33 @@ export const useAutomationStore = defineStore('app-automation', () => {
   }
 
   let runner = null
+  const scriptLogs = ref({})
 
-  function appendLog(entry) {
-    logs.value.push({
+  const logs = computed(() => {
+    const id = currentScriptId.value || 'default'
+    return scriptLogs.value[id] || []
+  })
+
+  function appendLog(entry, sId) {
+    const targetScriptId = sId || currentScriptId.value || 'default'
+    if (!scriptLogs.value[targetScriptId]) {
+      scriptLogs.value[targetScriptId] = []
+    }
+    scriptLogs.value[targetScriptId].push({
       id: nanoid(),
       time: Date.now(),
       ...entry,
     })
   }
 
-  function clearLogs() {
-    logs.value = []
+  function clearLogs(sId) {
+    const targetScriptId = sId || currentScriptId.value
+    if (targetScriptId) {
+      scriptLogs.value[targetScriptId] = []
+    }
+    else {
+      scriptLogs.value = {}
+    }
   }
 
   function getRunner() {
@@ -103,6 +119,8 @@ export const useAutomationStore = defineStore('app-automation', () => {
       return false
     }
 
+    currentScriptId.value = script.id
+    runningScriptId.value = script.id
     const instance = resetRunner()
     runnerStatus.value = RunnerStatus.RUNNING
     let lastActionStepIndex = -1
@@ -116,7 +134,7 @@ export const useAutomationStore = defineStore('app-automation', () => {
         isResume,
         referenceScreenWidth: script.referenceScreenWidth || 1080,
         referenceScreenHeight: script.referenceScreenHeight || 1920,
-        onLog: entry => appendLog(entry),
+        onLog: entry => appendLog(entry, script.id),
         onHumanIntervention: ({ deviceId: devId }) => {
           pauseRun({
             isHumanIntervention: true,
@@ -149,6 +167,7 @@ export const useAutomationStore = defineStore('app-automation', () => {
         return true
       }
 
+      runningScriptId.value = null
       runnerStatus.value = RunnerStatus.IDLE
       runningStepIndex.value = -1
       clearBreakpoint()
@@ -292,6 +311,7 @@ export const useAutomationStore = defineStore('app-automation', () => {
       runner.stop()
     }
     runnerStatus.value = RunnerStatus.STOPPED
+    runningScriptId.value = null
     const finalIndex = runningStepIndex.value >= 0 ? runningStepIndex.value : 0
     if (currentScriptId.value) {
       saveBreakpoint({

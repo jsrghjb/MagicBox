@@ -239,6 +239,8 @@ function onTouch(payload) {
         randomRange: 2,
         x: Math.round(startTouchPos.value.x * w),
         y: Math.round(startTouchPos.value.y * h),
+        baseWidth: w,
+        baseHeight: h,
       })
     }
     else {
@@ -254,6 +256,8 @@ function onTouch(payload) {
         endX: Math.round(endX * w),
         endY: Math.round(endY * h),
         duration: Math.max(100, now - startTouchTime.value),
+        baseWidth: w,
+        baseHeight: h,
       })
     }
     lastTouchTime.value = now

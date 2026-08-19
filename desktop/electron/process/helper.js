@@ -88,4 +88,9 @@ export function setupEnvPath() {
   const commonScrcpyDir = extraResolve('common/scrcpy')
   process.env.SCRCPY_ICON_DIR = commonScrcpyDir
   process.env.SCRCPY_SERVER_PATH = `${commonScrcpyDir}/scrcpy-server`
+
+  // Hide SDL windows from macOS Dock (launch as background accessory process)
+  if (process.platform === 'darwin') {
+    process.env.SDL_MAC_BACKGROUND_APP = '1'
+  }
 }

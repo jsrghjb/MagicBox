@@ -16,11 +16,12 @@
               <el-dropdown-item command="new">
                 {{ $t('automation.script.new') }}
               </el-dropdown-item>
-              <el-dropdown-item command="template">
-                {{ $t('automation.template.select') }}
-              </el-dropdown-item>
               <el-dropdown-item command="import">
                 {{ $t('automation.script.import') }}
+              </el-dropdown-item>
+              <el-dropdown-item divided command="restore_presets">
+                <i class="i-bi-arrow-repeat mr-1 text-primary-500"></i>
+                恢复所有预设模板脚本
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -44,27 +45,63 @@
         <div
           v-for="script in filteredScripts"
           :key="script.id"
-          class="px-2 py-2 rounded cursor-pointer flex items-center justify-between gap-2 transition-colors min-w-0"
+          class="px-2.5 py-2 rounded-lg cursor-pointer flex items-center justify-between gap-2 transition-all min-w-0 group"
           :class="[
             script.id === currentScriptId
-              ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
-              : 'hover:bg-gray-100 dark:hover:bg-gray-700',
+              ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 font-medium shadow-sm ring-1 ring-primary-200 dark:ring-primary-800/60'
+              : 'hover:bg-gray-100/80 dark:hover:bg-gray-800/60 text-gray-700 dark:text-gray-200',
           ]"
           @click="handleScriptSelect(script)"
         >
-          <span class="truncate text-sm flex-1 min-w-0" :title="script.name">{{ script.name }}</span>
-          <i
-            v-if="!licenseStore.checkCategoryAccess(script.category || 'general')"
-            class="i-bi-lock-fill text-amber-500 text-xs"
-            title="该脚本需要升级版本解锁"
-          ></i>
-          <el-button
-            text
-            circle
-            icon="Delete"
-            size="small"
-            @click.stop="$emit('delete', script)"
-          />
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <i class="i-bi-file-earmark-code text-gray-400 dark:text-gray-500 group-hover:text-primary-500 flex-none text-base"></i>
+            <span class="truncate text-sm flex-1 min-w-0" :title="script.name">{{ script.name }}</span>
+          </div>
+
+          <el-dropdown trigger="click" @command="(cmd) => handleItemCommand(cmd, script)">
+            <el-button
+              text
+              circle
+              size="small"
+              class="!p-1 text-gray-400 hover:!text-primary-500 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 rounded flex-none"
+              title="操作与转移分类"
+              @click.stop
+            >
+              <i class="i-bi-three-dots"></i>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item disabled class="!text-xs !text-gray-400">
+                  转移到分类:
+                </el-dropdown-item>
+                <el-dropdown-item command="move:general" :disabled="(script.category || 'general') === 'general'">
+                  ⚡ 基础日常
+                </el-dropdown-item>
+                <el-dropdown-item command="move:social" :disabled="script.category === 'social'">
+                  💬 社交通讯
+                </el-dropdown-item>
+                <el-dropdown-item command="move:media" :disabled="script.category === 'media'">
+                  🎬 视频图文
+                </el-dropdown-item>
+                <el-dropdown-item command="move:ecommerce" :disabled="script.category === 'ecommerce'">
+                  🛍️ 电商营销
+                </el-dropdown-item>
+                <el-dropdown-item command="move:game" :disabled="script.category === 'game'">
+                  🎮 游戏日常
+                </el-dropdown-item>
+                <el-dropdown-item command="move:system" :disabled="script.category === 'system'">
+                  ⚙️ 系统工具
+                </el-dropdown-item>
+                <el-dropdown-item command="move:custom" :disabled="script.category === 'custom'">
+                  📁 自定义
+                </el-dropdown-item>
+                <el-dropdown-item divided command="delete" class="!text-red-500">
+                  <i class="i-bi-trash mr-1"></i>
+                  删除脚本
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </div>
@@ -89,8 +126,9 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useAutomationScripts } from '$/database/index.js'
+import { db, useAutomationScripts } from '$/database/index.js'
 import { useLicenseStore } from '$/store/license/index.js'
+import { AUTOMATION_TEMPLATES } from '$/utils/automation/templates.js'
 import LicenseUpgradeModal from '$/components/license-upgrade-modal/index.vue'
 
 const props = defineProps({
@@ -115,29 +153,21 @@ const props = defineProps({
 const emit = defineEmits(['select', 'create', 'delete', 'import', 'export', 'template', 'ai', 'record'])
 
 const licenseStore = useLicenseStore()
-const { scripts } = useAutomationScripts(computed(() => props.deviceId))
+const { scripts, updateScript } = useAutomationScripts(computed(() => props.deviceId))
 const fileInputRef = ref(null)
 
-const selectedCategory = ref('all')
-const categories = [
-  { id: 'all', label: '全部' },
-  { id: 'general', label: '通用基础' },
-  { id: 'xiaohongshu', label: '小红书' },
-  { id: 'douyin', label: '抖音/TikTok' },
-  { id: 'wechat', label: '微信/视频号' },
-  { id: 'ecommerce', label: '跨境电商' },
-  { id: 'custom', label: '自定义' },
-]
-
-function handleCategoryFilterClick(cat) {
-  selectedCategory.value = cat.id
-  if (cat.id !== 'all' && !licenseStore.checkCategoryAccess(cat.id)) {
-    licenseStore.openUpgradeModal(cat.id)
-  }
+const categoryLabels = {
+  general: '基础日常',
+  social: '社交通讯',
+  media: '视频图文',
+  ecommerce: '电商营销',
+  game: '游戏日常',
+  system: '系统工具',
+  custom: '自定义',
 }
 
 const filteredScripts = computed(() => {
-  const cat = selectedCategory.value !== 'all' ? selectedCategory.value : props.category
+  const cat = props.category || 'all'
   if (!cat || cat === 'all') {
     return scripts.value
   }
@@ -148,19 +178,25 @@ onMounted(() => {
   licenseStore.fetchStatus()
 })
 
-function handleCategoryClick(cat) {
-  selectedCategory.value = cat.id
-  if (cat.id !== 'all' && !licenseStore.checkCategoryAccess(cat.id)) {
-    licenseStore.openUpgradeModal(cat.id)
+async function handleItemCommand(cmd, script) {
+  if (cmd === 'delete') {
+    emit('delete', script)
+  }
+  else if (cmd.startsWith('move:')) {
+    const targetCat = cmd.replace('move:', '')
+    try {
+      await updateScript(script.id, { category: targetCat })
+      script.category = targetCat
+      ElMessage.success(`已成功转移至 [${categoryLabels[targetCat] || targetCat}]`)
+    }
+    catch (err) {
+      console.error('Failed to move script category:', err)
+      ElMessage.error('转移分类失败')
+    }
   }
 }
 
 function handleScriptSelect(script) {
-  const cat = script.category || 'general'
-  if (!licenseStore.checkCategoryAccess(cat)) {
-    licenseStore.openUpgradeModal(cat)
-    return
-  }
   emit('select', script)
 }
 
@@ -179,6 +215,34 @@ function handleCommand(command) {
   }
   else if (command === 'import') {
     fileInputRef.value?.click()
+  }
+  else if (command === 'restore_presets') {
+    handleRestorePresets()
+  }
+}
+
+async function handleRestorePresets() {
+  const now = Date.now()
+  const defaultList = AUTOMATION_TEMPLATES.map((tmpl, idx) => ({
+    id: `preset_${tmpl.id}_${Date.now()}_${idx}`,
+    deviceId: 'common',
+    name: tmpl.name,
+    category: 'general',
+    steps: tmpl.buildSteps(),
+    vars: tmpl.vars || {},
+    schemaVersion: 2,
+    referenceScreenWidth: 1080,
+    referenceScreenHeight: 1920,
+    createdAt: now + idx * 100,
+    updatedAt: now + idx * 100,
+  }))
+  try {
+    await db.automation_scripts.bulkAdd(defaultList)
+    ElMessage.success('已成功恢复所有预设模板脚本！')
+  }
+  catch (err) {
+    console.error(err)
+    ElMessage.error('恢复预设脚本失败')
   }
 }
 

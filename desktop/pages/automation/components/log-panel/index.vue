@@ -20,7 +20,9 @@
         <div class="text-gray-400 font-mono text-[10px] opacity-75 mb-0.5">
           {{ formatTime(log.time) }}
         </div>
-        <div class="leading-snug">{{ log.message }}</div>
+        <div class="leading-snug">
+          {{ log.message }}
+        </div>
       </div>
     </div>
   </el-card>
