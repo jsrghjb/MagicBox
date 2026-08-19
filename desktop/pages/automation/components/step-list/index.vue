@@ -12,7 +12,7 @@
                 :key="item.value"
                 :command="item.value"
               >
-                {{ $t(item.label) }}
+                {{ getStepTypeLabel(item.label) }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -49,10 +49,10 @@
         <span class="text-xs text-gray-400 w-5 z-1">{{ index + 1 }}</span>
         <div class="flex-1 min-w-0 z-1">
           <div class="text-sm truncate">
-            {{ step.name || $t(stepTypeLabel(step.type)) }}
+            {{ step.name || getStepTypeLabel(stepTypeLabel(step.type)) }}
           </div>
           <div class="text-xs text-gray-400">
-            {{ $t(stepTypeLabel(step.type)) }}
+            {{ getStepTypeLabel(stepTypeLabel(step.type)) }}
           </div>
         </div>
         <el-dropdown trigger="click" @command="command => handleStepCommand(command, step)">
@@ -83,7 +83,7 @@
 </template>
 
 <script setup>
-import { STEP_TYPE_OPTIONS } from '$/utils/automation/step-types.js'
+import { getStepTypeLabel, STEP_TYPE_OPTIONS } from '$/utils/automation/step-types.js'
 
 const props = defineProps({
   steps: {

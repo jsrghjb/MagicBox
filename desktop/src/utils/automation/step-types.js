@@ -27,6 +27,41 @@ export const STEP_TYPE_OPTIONS = [
   { value: 'waitFor', label: 'automation.step.waitFor', group: 'vision' },
 ]
 
+export const STEP_TYPE_FALLBACKS = {
+  'automation.step.tap': '点击',
+  'automation.step.swipe': '滑动',
+  'automation.step.input': '输入',
+  'automation.step.wait': '等待',
+  'automation.step.key': '按键',
+  'automation.step.fetch_material': '获取接口图文',
+  'automation.step.launch': '启动应用',
+  'automation.step.command': '执行命令',
+  'automation.step.install': '安装应用',
+  'automation.step.screenshot': '屏幕截图',
+  'automation.step.record': '录制屏幕',
+  'automation.step.if': '条件判断 (If)',
+  'automation.step.loop': '循环执行 (Loop)',
+  'automation.step.end': '结束 (End)',
+  'automation.step.findImage': '找图点击',
+  'automation.step.waitFor': '等待画面',
+  'automation.step.group.basic': '基础操作',
+  'automation.step.group.data': '数据与物料',
+  'automation.step.group.extended': '扩展操作',
+  'automation.step.group.control': '控制流',
+  'automation.step.group.vision': '图像识别',
+}
+
+export function getStepTypeLabel(key) {
+  if (!key) {
+    return ''
+  }
+  const val = window.t ? window.t(key) : key
+  if (val && val !== key) {
+    return val
+  }
+  return STEP_TYPE_FALLBACKS[key] || key
+}
+
 export const KEY_OPTIONS = [
   { value: '3', label: 'automation.keys.home' },
   { value: '4', label: 'automation.keys.back' },

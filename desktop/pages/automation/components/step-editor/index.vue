@@ -27,12 +27,12 @@
             <el-option-group
               v-for="group in stepGroups"
               :key="group.label"
-              :label="$t(group.label)"
+              :label="getStepTypeLabel(group.label)"
             >
               <el-option
                 v-for="item in group.options"
                 :key="item.value"
-                :label="$t(item.label)"
+                :label="getStepTypeLabel(item.label)"
                 :value="item.value"
               />
             </el-option-group>
@@ -532,7 +532,7 @@
 <script setup>
 import InputPath from '$/components/preference-form/components/input-path/index.vue'
 import AppSelector from '$/components/app-selector/index.vue'
-import { createDefaultStep, IF_CONDITION_OPTIONS, KEY_OPTIONS, STEP_GROUPS, STEP_TYPE_OPTIONS } from '$/utils/automation/step-types.js'
+import { createDefaultStep, getStepTypeLabel, IF_CONDITION_OPTIONS, KEY_OPTIONS, STEP_GROUPS, STEP_TYPE_OPTIONS } from '$/utils/automation/step-types.js'
 import { useApiSourceStore } from '$/store/api-source/index.js'
 import CoordinatePicker from '../coordinate-picker/index.vue'
 
