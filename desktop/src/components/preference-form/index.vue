@@ -47,7 +47,8 @@
               </div>
             </template>
             <div class="pr-8 pt-4">
-              <el-row :gutter="20">
+              <ApiManagement v-if="name === 'api'" />
+              <el-row v-else :gutter="20">
                 <el-col
                   v-for="(item_1, name_1) of subModel(item)"
                   :key="name_1"
@@ -107,6 +108,7 @@ import { vIntersectionObserver } from '@vueuse/components'
 import { omit } from 'lodash-es'
 
 import { inputModel } from './components/index.js'
+import ApiManagement from '$/views/preference/components/api-management/index.vue'
 
 import { sleep } from '$/utils/index.js'
 

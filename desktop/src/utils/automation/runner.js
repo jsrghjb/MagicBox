@@ -636,7 +636,38 @@ async function runWaitFor({ step, deviceId, adb, onLog, signal }) {
   throw new Error('waitFor: 等待图片超时')
 }
 
-const MONITORED_STEP_TYPES = ['tap', 'swipe', 'input', 'wait', 'key', 'launch', 'command', 'install', 'screenshot', 'record', 'findImage', 'waitFor', 'if', 'loop', 'end']
+const MONITORED_STEP_TYPES = ['tap', 'swipe', 'input', 'wait', 'key', 'fetch_material', 'launch', 'command', 'install', 'screenshot', 'record', 'findImage', 'waitFor', 'if', 'loop', 'end']
+
+async function downloadAndPushImage(imageUrl, deviceId, adb, onLog) {
+  try {
+    const res = await fetch(imageUrl)
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    }
+    const blob = await res.blob()
+    const arrayBuffer = await blob.arrayBuffer()
+    const uint8Array = new Uint8Array(arrayBuffer)
+
+    let binary = ''
+    const len = uint8Array.byteLength
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(uint8Array[i])
+    }
+    const b64 = btoa(binary)
+
+    const filename = `xhs_mat_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`
+    const remotePath = `/sdcard/DCIM/Camera/${filename}`
+
+    await adb.deviceShell(deviceId, `echo '${b64}' | base64 -d > "${remotePath}"`)
+    await adb.deviceShell(deviceId, `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://${remotePath}"`).catch(() => {})
+
+    return remotePath
+  }
+  catch (err) {
+    onLog?.({ level: 'warning', message: `下载图片并注入相册失败: ${err.message || err}` })
+    return null
+  }
+}
 
 async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null, stealthManager = null, touchDispatcher = null) {
   switch (step.type) {
@@ -841,6 +872,55 @@ async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null
       await adb.pull(deviceId, remotePath, { savePath: dirname(savePath) })
       await adb.deviceShell(deviceId, `rm ${remotePath}`).catch(() => {})
       break
+    }
+    case 'fetch_material': {
+      onLog?.({ level: 'info', message: '🌐 正在请求并提取图文接口物料...' })
+      const { useApiSourceStore } = await import('$/store/api-source/index.js')
+      const apiSourceStore = useApiSourceStore()
+      const apiId = step.apiId || 'demo_xhs_lifestyle'
+      const strategy = step.strategy || 'sequential'
+      const specificIndex = step.specificIndex || 0
+
+      const { item, index, total, sourceName } = await apiSourceStore.fetchMaterialItem(apiId, strategy, specificIndex)
+
+      onLog?.({
+        level: 'info',
+        message: `📥 [${sourceName}] 成功命中物料 (#${index + 1}/${total}): "${item.title || '无标题'}"`,
+      })
+
+      const pushedImages = []
+      if (step.autoPushMedia !== false && item.images?.length > 0) {
+        onLog?.({ level: 'info', message: `📸 正在将 ${item.images.length} 张图片下载并注入手机相册...` })
+        for (let i = 0; i < item.images.length; i++) {
+          if (signal?.aborted) {
+            break
+          }
+          const imgUrl = item.images[i]
+          const remotePath = await downloadAndPushImage(imgUrl, deviceId, adb, onLog)
+          if (remotePath) {
+            pushedImages.push(remotePath)
+          }
+        }
+        if (pushedImages.length > 0) {
+          onLog?.({ level: 'info', message: `✅ 已成功将 ${pushedImages.length} 张图片注入手机相册 (/sdcard/DCIM/Camera/)，相册已就绪！` })
+        }
+      }
+
+      const prefix = step.targetVarPrefix || 'api'
+      const extractedVars = {
+        [`${prefix}.title`]: item.title || '',
+        [`${prefix}.content`]: item.content || '',
+        [`${prefix}.tags`]: item.tags || '',
+        [`${prefix}.imageCount`]: String(item.images?.length || 0),
+        title: item.title || '',
+        content: item.content || '',
+        tags: item.tags || '',
+      }
+
+      return {
+        __extractedVars: extractedVars,
+        material: item,
+      }
     }
     case 'findImage': {
       return await runFindImage({ step, deviceId, adb, onLog, signal })
@@ -1467,6 +1547,10 @@ export function createRunner() {
                 varsMap[posVar] = `${stepResult.x ?? ''},${stepResult.y ?? ''}`
                 onLog?.({ level: 'info', message: `保存坐标到变量: ${posVar}=${varsMap[posVar]}` })
               }
+            }
+
+            if (stepResult?.__extractedVars) {
+              Object.assign(varsMap, stepResult.__extractedVars)
             }
           }
           catch (stepErr) {

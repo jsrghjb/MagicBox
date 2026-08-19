@@ -220,6 +220,71 @@
           </el-form-item>
         </template>
 
+        <template v-if="step.type === 'fetch_material'">
+          <el-form-item label="图文接口源">
+            <el-select
+              :model-value="step.apiId || apiSourceStore.sources[0]?.id"
+              class="w-full"
+              placeholder="请选择接口源"
+              @update:model-value="update('apiId', $event)"
+            >
+              <el-option
+                v-for="item in apiSourceStore.sources"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="提取策略">
+            <el-radio-group
+              :model-value="step.strategy || 'sequential'"
+              @update:model-value="update('strategy', $event)"
+            >
+              <el-radio value="sequential">
+                ➡️ 顺序提取
+              </el-radio>
+              <el-radio value="random">
+                🎲 随机抽取
+              </el-radio>
+              <el-radio value="specific">
+                📌 指定序号
+              </el-radio>
+            </el-radio-group>
+          </el-form-item>
+
+          <el-form-item v-if="step.strategy === 'specific'" label="指定索引 (从0起)">
+            <el-input-number
+              :model-value="step.specificIndex || 0"
+              :min="0"
+              @update:model-value="update('specificIndex', $event)"
+            />
+          </el-form-item>
+
+          <el-form-item label="自动注入相册">
+            <div class="flex items-center gap-2">
+              <el-switch
+                :model-value="step.autoPushMedia !== false"
+                @update:model-value="update('autoPushMedia', $event)"
+              />
+              <span class="text-xs text-gray-500">将接口图片自动推送到手机相册第 1 张</span>
+            </div>
+          </el-form-item>
+
+          <div class="bg-blue-50/70 dark:bg-blue-950/30 p-2.5 rounded-lg border border-blue-200/50 dark:border-blue-800/50 text-[11px] text-blue-700 dark:text-blue-300 space-y-1 mb-3">
+            <div class="font-bold flex items-center gap-1">
+              <i class="i-bi-info-circle-fill"></i>
+              <span>执行时将自动生成以下变量（后续输入步骤可直接填入）：</span>
+            </div>
+            <div class="font-mono text-[10px] space-y-0.5 pl-4">
+              <div>• 标题：<code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">&#123;&#123;api.title&#125;&#125;</code></div>
+              <div>• 正文：<code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">&#123;&#123;api.content&#125;&#125;</code></div>
+              <div>• 话题标签：<code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">&#123;&#123;api.tags&#125;&#125;</code></div>
+            </div>
+          </div>
+        </template>
+
         <template v-if="step.type === 'input'">
           <el-form-item :label="$t('automation.step.text')">
             <el-input
@@ -468,6 +533,7 @@
 import InputPath from '$/components/preference-form/components/input-path/index.vue'
 import AppSelector from '$/components/app-selector/index.vue'
 import { createDefaultStep, IF_CONDITION_OPTIONS, KEY_OPTIONS, STEP_GROUPS, STEP_TYPE_OPTIONS } from '$/utils/automation/step-types.js'
+import { useApiSourceStore } from '$/store/api-source/index.js'
 import CoordinatePicker from '../coordinate-picker/index.vue'
 
 const props = defineProps({
@@ -483,6 +549,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'run-step'])
 
+const apiSourceStore = useApiSourceStore()
+
 const pickerVisible = ref(false)
 const pickerMode = ref('tap')
 const keyOptions = KEY_OPTIONS
@@ -494,6 +562,10 @@ const stepGroups = computed(() => [
   {
     label: 'automation.step.group.basic',
     options: STEP_TYPE_OPTIONS.filter(item => STEP_GROUPS.basic.includes(item.value)),
+  },
+  {
+    label: 'automation.step.group.data',
+    options: STEP_TYPE_OPTIONS.filter(item => (STEP_GROUPS.data || []).includes(item.value)),
   },
   {
     label: 'automation.step.group.extended',

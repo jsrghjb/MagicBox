@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid'
 
 export const STEP_GROUPS = {
   basic: ['tap', 'swipe', 'input', 'wait', 'key'],
+  data: ['fetch_material'],
   extended: ['launch', 'command', 'install', 'screenshot', 'record'],
   control: ['if', 'loop', 'end'],
   vision: ['findImage', 'waitFor'],
@@ -13,6 +14,7 @@ export const STEP_TYPE_OPTIONS = [
   { value: 'input', label: 'automation.step.input', group: 'basic' },
   { value: 'wait', label: 'automation.step.wait', group: 'basic' },
   { value: 'key', label: 'automation.step.key', group: 'basic' },
+  { value: 'fetch_material', label: 'automation.step.fetch_material', group: 'data' },
   { value: 'launch', label: 'automation.step.launch', group: 'extended' },
   { value: 'command', label: 'automation.step.command', group: 'extended' },
   { value: 'install', label: 'automation.step.install', group: 'extended' },
@@ -81,6 +83,15 @@ export function createDefaultStep(type = 'tap') {
       return { ...base, iterations: 1, breakOnFail: false }
     case 'end':
       return { ...base }
+    case 'fetch_material':
+      return {
+        ...base,
+        apiId: 'demo_xhs_lifestyle',
+        strategy: 'sequential',
+        specificIndex: 0,
+        autoPushMedia: true,
+        targetVarPrefix: 'api',
+      }
     case 'findImage':
       return { ...base, imagePath: '', threshold: 0.85, matchRegion: null, saveAs: 'x,y' }
     case 'waitFor':

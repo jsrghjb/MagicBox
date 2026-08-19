@@ -372,6 +372,7 @@
     "useControlSidebarStore": true,
     "useLaunchOrientation": true,
     "ScheduleStatusGroups": true,
-    "useLicenseStore": true
+    "useLicenseStore": true,
+    "useApiSourceStore": true
   }
 }
