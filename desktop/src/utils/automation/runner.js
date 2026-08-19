@@ -640,28 +640,13 @@ const MONITORED_STEP_TYPES = ['tap', 'swipe', 'input', 'wait', 'key', 'fetch_mat
 
 async function downloadAndPushImage(imageUrl, deviceId, adb, onLog) {
   try {
-    const res = await fetch(imageUrl)
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    if (adb?.pushImageFromUrl) {
+      return await adb.pushImageFromUrl(deviceId, imageUrl, '/sdcard/DCIM/Camera')
     }
-    const blob = await res.blob()
-    const arrayBuffer = await blob.arrayBuffer()
-    const uint8Array = new Uint8Array(arrayBuffer)
-
-    let binary = ''
-    const len = uint8Array.byteLength
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(uint8Array[i])
+    if (window.$preload?.adb?.pushImageFromUrl) {
+      return await window.$preload.adb.pushImageFromUrl(deviceId, imageUrl, '/sdcard/DCIM/Camera')
     }
-    const b64 = btoa(binary)
-
-    const filename = `xhs_mat_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`
-    const remotePath = `/sdcard/DCIM/Camera/${filename}`
-
-    await adb.deviceShell(deviceId, `echo '${b64}' | base64 -d > "${remotePath}"`)
-    await adb.deviceShell(deviceId, `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://${remotePath}"`).catch(() => {})
-
-    return remotePath
+    throw new Error('ADB pushImageFromUrl 传输接口未就绪')
   }
   catch (err) {
     onLog?.({ level: 'warning', message: `下载图片并注入相册失败: ${err.message || err}` })

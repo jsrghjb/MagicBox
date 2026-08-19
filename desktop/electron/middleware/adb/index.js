@@ -208,6 +208,36 @@ async function push(id, filePath, args = {}) {
   })
 }
 
+export async function pushImageFromUrl(deviceId, url, remotePath = '/sdcard/DCIM/Camera') {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    }
+    const arrayBuffer = await res.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const fileName = `xhs_mat_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`
+    const fullSavePath = `${remotePath}/${fileName}`.replace(/\/+/g, '/')
+
+    const device = client.getDevice(deviceId)
+    const transfer = await device.push(buffer, fullSavePath)
+
+    await new Promise((resolve, reject) => {
+      transfer.on('end', resolve)
+      transfer.on('error', reject)
+    })
+
+    await deviceShell(deviceId, `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://${fullSavePath}"`).catch(() => {})
+
+    return fullSavePath
+  }
+  catch (err) {
+    console.warn(`Failed to push image from url (${url}):`, err?.message || err)
+    throw err
+  }
+}
+
 async function pull(id, filePath, args = {}) {
   const { progress, savePath = '../' } = args
 
@@ -643,4 +673,5 @@ export default {
   killProcesses,
   installAdbKeyboard,
   isInstalledAdbKeyboard,
+  pushImageFromUrl,
 }
