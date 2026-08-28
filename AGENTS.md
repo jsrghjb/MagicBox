@@ -5,7 +5,7 @@ Escrcpy is a pnpm + Turborepo monorepo for an Electron GUI around Android mirror
 ## Architecture
 
 - [desktop/](../desktop/) is the Electron app. The main process is plugin-based via `@escrcpy/electron-setup`; the entry point is [desktop/electron/main.js](../desktop/electron/main.js).
-- Renderer windows are separate Vite entries in [desktop/vite.config.js](../desktop/vite.config.js): `main`, `control`, `explorer`, `copilot`, `terminal`, `automation`, and `mirror`.
+- Renderer windows are separate Vite entries in [desktop/vite.config.js](../desktop/vite.config.js): `main`, `control`, `explorer`, and `terminal`.
 - Window modules live under [desktop/electron/modules/](../desktop/electron/modules/). Register main-process features as modules/services instead of adding logic to the preload script.
 - [packages/electron-setup/](../packages/electron-setup/) provides app/plugin/window management primitives. [packages/electron-ipcx/README.md](../packages/electron-ipcx/README.md) documents IPC with renderer callbacks.
 - [packages/wscrcpy/](../packages/wscrcpy/) contains scrcpy session/client logic. Preserve its `WscrcpySession` model and `DeviceTarget = 'all' | 'primary' | string | string[]` contract.
@@ -26,7 +26,7 @@ There is no repo-wide test script today. For changes, run the smallest meaningfu
 ## Frontend Patterns
 
 - Vue code uses Vue 3 Composition API with `<script setup>` and auto-imported Vue, VueUse, Pinia, router, `definePage`, and `t` globals from [desktop/src/plugins/internal.js](../desktop/src/plugins/internal.js) and [eslint.config.js](../eslint.config.js).
-- Use existing aliases from [desktop/vite.config.js](../desktop/vite.config.js): `$`, `$root`, `$docs`, `$renderer`, `$electron`, `$control`, `$explorer`, `$copilot`, `$terminal`, `$automation`, and `$mirror`.
+- Use existing aliases from [desktop/vite.config.js](../desktop/vite.config.js): `$`, `$root`, `$docs`, `$renderer`, `$electron`, `$control`, `$explorer`, and `$terminal`.
 - File-based routes live in [desktop/src/views/](../desktop/src/views/) and exclude nested `components` folders.
 - Pinia stores live in [desktop/src/store/](../desktop/src/store/), with persisted state and `window.$preload.store` for electron-store integration. See [desktop/src/store/device/index.js](../desktop/src/store/device/index.js) for the main pattern.
 - Styling uses UnoCSS utilities and project presets from [desktop/unocss.config.js](../desktop/unocss.config.js). Prefer local utility/style patterns over introducing new UI systems.

@@ -16,12 +16,12 @@
         <div v-if="!collapsed" class="flex items-center gap-2.5 px-1 py-1">
           <img src="$electron/resources/build/logo.png" class="w-8 h-8 rounded-lg object-contain shadow-sm flex-none" alt="logo" />
           <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-primary-600 to-indigo-600 bg-clip-text text-transparent whitespace-nowrap flex-1">
-            魔屏助手
+            魔法百宝箱
           </span>
         </div>
 
         <!-- Vertical Menu Navigation -->
-        <nav class="flex flex-col gap-1">
+        <nav class="flex flex-col gap-1 app-region-no-drag">
           <el-tooltip
             v-for="item of tabsModel"
             :key="item.value"
@@ -31,7 +31,7 @@
             :show-arrow="false"
           >
             <button
-              class="sidebar-nav-btn"
+              class="sidebar-nav-btn app-region-no-drag"
               :class="[
                 { 'is-active': activeTab === item.value },
                 { 'is-collapsed': collapsed },
@@ -39,8 +39,7 @@
               @click="activeTab = item.value"
             >
               <i v-if="item.value === '/device'" class="i-solar-smartphone-line-duotone text-lg flex-none"></i>
-              <i v-else-if="item.value === '/cluster'" class="i-solar-box-minimalistic-bold-duotone text-lg flex-none"></i>
-              <i v-else-if="item.value === '/automation'" class="i-solar-code-circle-bold-duotone text-lg flex-none"></i>
+              <i v-else-if="item.value === '/toolbox'" class="i-solar-widget-4-bold-duotone text-lg flex-none"></i>
               <i v-else-if="item.value === '/preference'" class="i-solar-settings-bold-duotone text-lg flex-none"></i>
               <i v-else-if="item.value === '/about'" class="i-solar-info-circle-bold-duotone text-lg flex-none"></i>
               <span
@@ -52,32 +51,8 @@
         </nav>
       </div>
 
-      <!-- Bottom: License Tier Badge & Version -->
+      <!-- Bottom: Version -->
       <div class="mt-auto pt-2 border-t border-gray-200/60 dark:border-gray-800/60 overflow-hidden flex flex-col items-center gap-1.5 app-region-no-drag">
-        <button
-          class="w-full rounded-lg px-2 py-2 flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-gradient-to-r text-xs font-bold shadow-sm text-center"
-          :class="[
-            licenseStore.isTeam
-              ? 'from-amber-500/15 to-amber-600/15 text-amber-600 dark:text-amber-400 border border-amber-400/40 hover:border-amber-400'
-              : licenseStore.isPersonal
-                ? 'from-indigo-500/15 to-blue-600/15 text-indigo-600 dark:text-indigo-400 border border-indigo-400/40 hover:border-indigo-400'
-                : 'from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300/40 dark:border-gray-700 hover:border-primary-400',
-          ]"
-          :title="licenseStore.isTeam ? '已激活：团队旗舰版' : licenseStore.isPersonal ? '已激活：个人专业版' : '当前为免费体验版，点击升级套餐'"
-          @click="licenseStore.openUpgradeModal()"
-        >
-          <i
-            class="text-base flex-none"
-            :class="licenseStore.isTeam ? 'i-bi-award-fill text-amber-500' : licenseStore.isPersonal ? 'i-bi-person-badge-fill text-indigo-500' : 'i-bi-lightning-charge-fill text-gray-400'"
-          ></i>
-          <span v-if="!collapsed" class="truncate text-center">
-            {{ licenseStore.isTeam ? '团队旗舰版' : licenseStore.isPersonal ? '个人专业版' : '免费体验版' }}
-          </span>
-          <span v-if="!collapsed && licenseStore.isFree" class="text-[10px] bg-primary-500 text-white px-1.5 py-0.5 rounded-full flex-none font-normal ml-0.5">
-            升级
-          </span>
-        </button>
-
         <div v-if="!collapsed" class="text-[10px] text-gray-400/80 tracking-tight text-center">
           v{{ version }}
         </div>
@@ -110,7 +85,7 @@
       </AppHeader>
 
       <!-- Main Viewport -->
-      <div class="flex-1 min-h-0 p-4 overflow-auto">
+      <div class="flex-1 min-h-0 p-4 overflow-hidden">
         <RouterView v-slot="{ Component }">
           <keep-alive>
             <component :is="Component" />
@@ -122,17 +97,9 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
 import { version } from '/package.json'
 import AppHeader from '$/components/app-header/index.vue'
 import QuickBar from '$/components/quick-bar/index.vue'
-import { useLicenseStore } from '$/store/license/index.js'
-
-const licenseStore = useLicenseStore()
-
-onMounted(() => {
-  licenseStore.fetchStatus()
-})
 
 const router = useRouter()
 const route = useRoute()
@@ -146,8 +113,7 @@ function toggleCollapse() {
 
 const tabsModel = [
   { label: 'device.list', value: '/device' },
-  { label: 'cluster.gridView', value: '/cluster' },
-  { label: 'automation.menu', value: '/automation' },
+  { label: 'toolbox.name', value: '/toolbox' },
   { label: 'preferences.name', value: '/preference' },
   { label: 'about.name', value: '/about' },
 ]

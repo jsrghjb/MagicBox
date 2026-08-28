@@ -354,15 +354,7 @@
     "useTimeAgoIntl": true,
     "useI18n": true,
     "useLazy": true,
-    "ExecutionState": true,
-    "KEY_CODES": true,
-    "SCRIPT_TEMPLATES": true,
-    "STEP_TYPES": true,
-    "StepStatus": true,
-    "useAutomationStore": true,
-    "useAutomationVariableStore": true,
     "useSubscribePermission": true,
-    "useAdbKeyboard": true,
     "useDeviceRotation": true,
     "useDeviceVolume": true,
     "useInsetMirror": true,
@@ -373,6 +365,6 @@
     "useLaunchOrientation": true,
     "ScheduleStatusGroups": true,
     "useLicenseStore": true,
-    "useApiSourceStore": true
+    "useToolboxStore": true
   }
 }

@@ -15,55 +15,6 @@
           检查更新
         </el-button>
       </div>
-
-      <!-- License Info Section -->
-      <div class="mt-4 p-5 rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/50 dark:bg-gray-900/30 flex flex-col gap-3 max-w-[420px] w-full text-sm shadow-sm">
-        <div class="flex items-center justify-between w-full border-b border-gray-100 dark:border-gray-800 pb-2">
-          <span class="text-gray-500 dark:text-gray-400 font-medium">授权版本</span>
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-gray-800 dark:text-gray-200">
-              {{ licenseStore.isTeam ? '团队旗舰版' : licenseStore.isPersonal ? '个人专业版' : '免费体验版' }}
-            </span>
-            <el-tag :type="licenseStore.activated ? 'success' : 'info'" size="small" effect="light" class="font-medium">
-              {{ licenseStore.activated ? '已激活' : '免费版' }}
-            </el-tag>
-          </div>
-        </div>
-
-        <div v-if="licenseStore.activated" class="flex items-center justify-between w-full border-b border-gray-100 dark:border-gray-800 pb-2">
-          <span class="text-gray-500 dark:text-gray-400 font-medium">有效期至</span>
-          <span class="font-mono text-gray-800 dark:text-gray-200 font-semibold">
-            {{ licenseStore.expiryDate === '永久' || licenseStore.expiryDate === '2099-12-31' ? '永久授权' : licenseStore.expiryDate }}
-          </span>
-        </div>
-
-        <!-- 原生机器码 -->
-        <div class="flex flex-col gap-1 w-full border-b border-gray-100 dark:border-gray-800 pb-2">
-          <span class="text-gray-500 dark:text-gray-400 font-medium text-xs">原生设备机器码</span>
-          <div class="flex items-center gap-2 bg-gray-100/70 dark:bg-slate-900/70 border border-gray-200/50 dark:border-gray-800/50 rounded-lg px-2.5 py-1.5 font-mono text-xs text-gray-700 dark:text-gray-200">
-            <span class="flex-1 select-all tracking-wider font-semibold truncate">{{ licenseStore.machineId || '读取中...' }}</span>
-            <el-button size="small" type="primary" link icon="CopyDocument" class="!p-0" @click="copyMachineId" />
-          </div>
-        </div>
-
-        <!-- 当前激活码 -->
-        <div v-if="licenseStore.activeKey" class="flex flex-col gap-1 w-full">
-          <span class="text-gray-500 dark:text-gray-400 font-medium text-xs">当前卡密激活码</span>
-          <div class="flex items-center gap-2 bg-gray-100/70 dark:bg-slate-900/70 border border-gray-200/50 dark:border-gray-800/50 rounded-lg px-2.5 py-1.5 font-mono text-xs text-primary-600 dark:text-primary-400 font-semibold">
-            <span class="flex-1 select-all tracking-wider truncate">{{ licenseStore.activeKey }}</span>
-            <el-button size="small" type="primary" link icon="CopyDocument" class="!p-0" @click="copyActiveKey" />
-          </div>
-        </div>
-
-        <div class="w-full mt-1 pt-1 flex gap-3 justify-center">
-          <el-button type="primary" size="default" class="flex-1 !rounded-xl" @click="handleRenew">
-            {{ licenseStore.activated ? '更换/续期激活码' : '输入卡密激活' }}
-          </el-button>
-          <el-button v-if="licenseStore.activated" type="danger" size="default" plain class="flex-1 !rounded-xl" @click="handleDeactivate">
-            解除绑定
-          </el-button>
-        </div>
-      </div>
     </div>
 
     <!-- Software Update Dialog -->
@@ -118,7 +69,7 @@
             更新包下载完成
           </div>
           <div class="text-sm text-gray-500">
-            魔屏助手已准备就绪，需要退出并安装新版本。
+            魔法百宝箱已准备就绪，需要退出并安装新版本。
           </div>
           <div class="pt-4 w-full">
             <el-button type="primary" class="w-full !rounded-xl" @click="installNow">
@@ -133,73 +84,12 @@
 
 <script setup>
 import { version } from '/package.json'
-import { useLicenseStore } from '$/store/license/index.js'
 
-const licenseStore = useLicenseStore()
-
-// Update states
 const updateDialogVisible = ref(false)
 const updateStatus = ref('idle') // idle | checking | available | downloading | downloaded
 const downloadProgress = ref(0)
 const newVersionInfo = ref(null)
 
-function copyMachineId() {
-  navigator.clipboard.writeText(licenseStore.machineId || '')
-  ElMessage.success('原生机器码已复制到剪贴板！')
-}
-
-function copyActiveKey() {
-  navigator.clipboard.writeText(licenseStore.activeKey || '')
-  ElMessage.success('激活码已复制到剪贴板！')
-}
-
-async function handleRenew() {
-  try {
-    const { value: newKey } = await ElMessageBox.prompt('请输入新的激活码进行续期或更换授权：', '更新激活码', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPlaceholder: 'XXXX-XXXX-XXXX-XXXX',
-    })
-
-    if (newKey && newKey.trim()) {
-      const res = await licenseStore.activateKey(newKey.trim())
-      if (res.success) {
-        ElMessage.success('激活码更新成功！')
-        await licenseStore.fetchStatus()
-      }
-      else {
-        ElMessage.error(res.error || '激活码验证失败')
-      }
-    }
-  }
-  catch (e) {
-    if (e !== 'cancel') {
-      console.error(e)
-    }
-  }
-}
-
-async function handleDeactivate() {
-  try {
-    await ElMessageBox.confirm('确定要解除本机的授权绑定并恢复为免费体验版吗？', '解除绑定', {
-      confirmButtonText: '确定解绑',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-    const res = await licenseStore.deactivateKey()
-    if (res.success) {
-      ElMessage.success('已解除授权，系统已恢复为免费体验版！')
-      await licenseStore.fetchStatus()
-    }
-  }
-  catch (e) {
-    if (e !== 'cancel') {
-      ElMessage.error(`解绑失败: ${e.message || String(e)}`)
-    }
-  }
-}
-
-// Check for updates
 function checkUpdate() {
   updateStatus.value = 'checking'
   updateDialogVisible.value = true
@@ -221,8 +111,6 @@ function installNow() {
 let unbindEvents = () => {}
 
 onMounted(() => {
-  licenseStore.fetchStatus()
-
   const ipc = window.$preload.ipcRenderer
 
   const onUpdateAvailable = (event, info) => {

@@ -1,11 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } from 'electron'
 import fs from 'fs-extra'
-import https from 'node:https'
-import http from 'node:http'
 import path from 'node:path'
 import { openLogPath } from '$root/electron/helpers/debugger/index.js'
 import { isWindowDestroyed } from '$electron/helpers/index.js'
-import { findImageOnScreen } from './image-search.js'
 import {
   getSecret,
   isSecureStorageAvailable,
@@ -211,113 +208,6 @@ export default {
       return true
     })
 
-    // 测试 AI 模型服务连接
-    ipcMain.handle('test-ai-connection', async (_, config = {}) => {
-      const { baseUrl, apiKey, model } = config
-      const cleanedBaseUrl = String(baseUrl || '').replace(/\/$/, '')
-      const url = `${cleanedBaseUrl}/chat/completions`
-
-      const body = JSON.stringify({
-        model: model || 'glm-4-flash',
-        messages: [{ role: 'user', content: 'Say hello!' }],
-        max_tokens: 50,
-      })
-
-      return await new Promise((resolve) => {
-        const lib = url.startsWith('https') ? https : http
-        const req = lib.request(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-        }, (res) => {
-          let chunks = ''
-          res.on('data', (chunk) => {
-            chunks += chunk
-          })
-          res.on('end', () => {
-            resolve({
-              ok: res.statusCode >= 200 && res.statusCode < 300,
-              status: res.statusCode,
-              body: chunks.substring(0, 500),
-            })
-          })
-        })
-
-        req.on('error', (err) => {
-          resolve({ ok: false, status: 0, error: err.message })
-        })
-
-        req.setTimeout(30000, () => {
-          req.destroy(new Error('Request timeout'))
-        })
-
-        req.write(body)
-        req.end()
-      })
-    })
-
-    // AI 聊天补全请求
-    ipcMain.handle('ai-chat-completions', async (_, config = {}) => {
-      const { baseUrl, apiKey, model, temperature, messages, responseFormat } = config
-      const cleanedBaseUrl = String(baseUrl || '').replace(/\/$/, '')
-      const url = `${cleanedBaseUrl}/chat/completions`
-
-      const requestBody = {
-        model,
-        temperature: temperature ?? 0.2,
-        messages,
-      }
-
-      if (responseFormat) {
-        requestBody.response_format = responseFormat
-      }
-
-      const body = JSON.stringify(requestBody)
-
-      return await new Promise((resolve) => {
-        const lib = url.startsWith('https') ? https : http
-        const req = lib.request(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-        }, (res) => {
-          let chunks = ''
-          res.on('data', (chunk) => {
-            chunks += chunk
-          })
-          res.on('end', () => {
-            const ok = res.statusCode >= 200 && res.statusCode < 300
-            resolve({ ok, status: res.statusCode, body: chunks })
-          })
-        })
-
-        req.on('error', (err) => {
-          resolve({ ok: false, status: 0, error: err.message })
-        })
-
-        req.setTimeout(60000, () => {
-          req.destroy(new Error('Request timeout'))
-        })
-
-        req.write(body)
-        req.end()
-      })
-    })
-
-    // 找图：使用 sharp 在主进程做模板匹配
-    ipcMain.handle('automation:findImage', async (_, options = {}) => {
-      try {
-        return await findImageOnScreen(options)
-      }
-      catch (error) {
-        return { found: false, score: 0, error: error?.message || String(error) }
-      }
-    })
-
     // 加密存储：基于 Electron safeStorage 保存敏感信息（如 API Key）
     ipcMain.handle('secure-store:available', () => {
       return isSecureStorageAvailable()
@@ -351,9 +241,6 @@ export default {
       ipcMain.removeHandler('navigate-to-route')
       ipcMain.removeHandler('open-log-path')
       ipcMain.removeHandler('open-system-menu')
-      ipcMain.removeHandler('test-ai-connection')
-      ipcMain.removeHandler('ai-chat-completions')
-      ipcMain.removeHandler('automation:findImage')
       ipcMain.removeHandler('secure-store:available')
       ipcMain.removeHandler('secure-store:get')
       ipcMain.removeHandler('secure-store:set')

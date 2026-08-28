@@ -21,7 +21,6 @@ const alias = {
   '$control': resolve('pages/control'),
   '$explorer': resolve('pages/explorer'),
   '$terminal': resolve('pages/terminal'),
-  '$automation': resolve('pages/automation'),
   '@escrcpy/electron-setup/main': resolve('../packages/electron-setup/dist/main/index.mjs'),
   '@escrcpy/electron-setup/plugins': resolve('../packages/electron-setup/dist/plugins/index.mjs'),
 }
@@ -59,7 +58,6 @@ export default function (args) {
             control: resolve('pages/control/index.html'),
             explorer: resolve('pages/explorer/index.html'),
             terminal: resolve('pages/terminal/index.html'),
-            automation: resolve('pages/automation/index.html'),
           },
         },
       },

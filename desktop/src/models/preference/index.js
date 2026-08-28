@@ -7,8 +7,6 @@ import launch from './launch/index.js'
 import record from './record/index.js'
 import video from './video/index.js'
 import window from './window/index.js'
-import automation from './automation/index.js'
-import api from './api/index.js'
 
 export default {
   common,
@@ -20,6 +18,4 @@ export default {
   record,
   input,
   camera,
-  automation,
-  api,
 }

@@ -46,12 +46,8 @@
                 </div>
               </div>
             </template>
-            <div
-              class="pt-4 min-w-0 max-w-full overflow-hidden box-border pr-4 md:pr-8"
-              :class="{ 'pl-4': name === 'api' }"
-            >
-              <ApiManagement v-if="name === 'api'" />
-              <el-row v-else :gutter="20">
+            <div class="pt-4 min-w-0 max-w-full overflow-hidden box-border pr-4 md:pr-8">
+              <el-row :gutter="20">
                 <el-col
                   v-for="(item_1, name_1) of subModel(item)"
                   :key="name_1"
@@ -111,7 +107,6 @@ import { vIntersectionObserver } from '@vueuse/components'
 import { omit } from 'lodash-es'
 
 import { inputModel } from './components/index.js'
-import ApiManagement from '$/views/preference/components/api-management/index.vue'
 
 import { sleep } from '$/utils/index.js'
 

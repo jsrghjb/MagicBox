@@ -32,14 +32,11 @@ import {
   launchService,
   lifecycleService,
   listenersService,
-  shortcutsService,
   trayService,
   updaterService,
 } from './services/index.js'
 
 import {
-  automationModule,
-  clusterControlModule,
   controlModule,
   explorerModule,
   licenseModule,
@@ -101,60 +98,13 @@ mainApp.use(trayService)
 mainApp.use(contextMenuService)
 mainApp.use(updaterService)
 mainApp.use(launchService)
-mainApp.use(shortcutsService)
 
 mainApp.use(controlModule)
-mainApp.use(clusterControlModule)
 mainApp.use(explorerModule)
 mainApp.use(terminalModule)
-mainApp.use(automationModule)
 mainApp.use(scheduleModule)
 mainApp.use(licenseModule)
 
-if (process.defaultApp) {
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('escrcpy', process.execPath, [path.resolve(process.argv[1])])
-  }
-}
-else {
-  app.setAsDefaultProtocolClient('escrcpy')
-}
-
-function handleDeepLinkUrl(urlStr) {
-  if (!urlStr || !urlStr.startsWith('escrcpy://'))
-    return
-
-  try {
-    const parsed = new URL(urlStr)
-    const token = parsed.searchParams.get('token') || parsed.searchParams.get('key')
-    if (token) {
-      const { setSecret } = import('./helpers/secure-store/index.js')
-      setSecret('license_key', token)
-
-      const windows = app.getWindows?.() || []
-      windows.forEach((w) => {
-        w.webContents.send('license:onActivated', { success: true, token })
-      })
-    }
-  }
-  catch (err) {
-    console.warn('DeepLink parse error:', err)
-  }
-}
-
-app.on('open-url', (event, urlStr) => {
-  event.preventDefault()
-  handleDeepLinkUrl(urlStr)
-})
-
 app.whenReady().then(() => {
   mainApp.start()
-
-  // Handle command line deep link for Windows
-  if (process.argv.length > 1) {
-    const deepArg = process.argv.find(arg => arg.startsWith('escrcpy://'))
-    if (deepArg) {
-      handleDeepLinkUrl(deepArg)
-    }
-  }
 })

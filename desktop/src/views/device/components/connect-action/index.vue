@@ -11,9 +11,6 @@
 </template>
 
 <script setup>
-import { useDeviceStore } from '$/store/device'
-import { useLicenseStore } from '$/store/license'
-
 const props = defineProps({
   device: {
     type: Object,
@@ -25,17 +22,9 @@ const props = defineProps({
   },
 })
 
-const deviceStore = useDeviceStore()
-const licenseStore = useLicenseStore()
 const loading = ref(false)
 
 async function handleClick(device) {
-  const onlineCount = deviceStore.list.filter(d => d.status === 'device').length
-  if (!licenseStore.checkDeviceLimit(onlineCount)) {
-    licenseStore.openUpgradeModal()
-    return
-  }
-
   loading.value = true
 
   await props.handleConnect(device.id)

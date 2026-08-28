@@ -33,22 +33,8 @@ export const usePreferenceStore = defineStore('app-preference', () => {
     titleBarHeight.value = display.titleBarHeight
   })
 
-  async function loadSecureKeys() {
-    try {
-      const { getSecret } = await import('$/utils/secure-store/index.js')
-      const apiKey = await getSecret('automation.aiApiKey')
-      if (apiKey != null) {
-        data.value.aiApiKey = apiKey
-      }
-    }
-    catch (e) {
-      console.warn('Failed to load secure key:', e)
-    }
-  }
-
   function init(scope = deviceScope.value) {
     data.value = getData(scope)
-    loadSecureKeys()
     return data.value
   }
 
@@ -59,18 +45,7 @@ export const usePreferenceStore = defineStore('app-preference', () => {
   }
 
   function setData(dataToSet, scope = deviceScope.value) {
-    const copy = { ...dataToSet }
-    const apiKey = copy.aiApiKey
-    copy.aiApiKey = ''
-    setStoreData(copy, scope)
-
-    if (apiKey !== undefined) {
-      import('$/utils/secure-store/index.js').then(({ setSecret }) => {
-        setSecret('automation.aiApiKey', apiKey).catch((e) => {
-          console.warn('Failed to save secure key:', e)
-        })
-      })
-    }
+    setStoreData(dataToSet, scope)
   }
 
   function reset(scope) {
@@ -88,13 +63,7 @@ export const usePreferenceStore = defineStore('app-preference', () => {
         window.$preload.store.set(key, {})
       })
     }
-    import('$/utils/secure-store/index.js').then(({ removeSecret }) => {
-      removeSecret('automation.aiApiKey').catch((e) => {
-        console.warn('Failed to remove secure key:', e)
-      })
-    }).finally(() => {
-      init()
-    })
+    init()
   }
 
   function resetDeps(type) {

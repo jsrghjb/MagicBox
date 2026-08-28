@@ -23,8 +23,7 @@ export const adbKeyboardApkPath = extraResolve('common/adb-keyboard/ADBKeyboard.
 export const localesDir = extraResolve('common/locales/')
 
 /**
- * Resolves a writable temp directory for transient automation artifacts
- * (e.g. screenshots used by find-image). Falls back to the OS tmp if the
+ * Resolves a writable temp directory. Falls back to the OS tmp if the
  * app instance is not ready yet.
  */
 export const tempPath = (() => {

@@ -76,25 +76,20 @@
             }"
           >
             <template #default="{ loading = false, trigger } = {}">
-              <el-tooltip
-                :content="$t(item.tips || item.label)"
-                placement="left"
-                :show-after="100"
+              <button
+                class="tool-btn"
+                :class="[
+                  item.id === 'power' ? 'text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40' : '',
+                ]"
+                :title="$t(item.tips || item.label)"
+                :disabled="loading"
+                @click="handleClick(item, trigger || item.trigger)"
               >
-                <button
-                  class="tool-btn"
-                  :class="[
-                    item.id === 'power' ? 'text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/40' : '',
-                  ]"
-                  :disabled="loading"
-                  @click="handleClick(item, trigger || item.trigger)"
-                >
-                  <el-icon v-if="loading" class="is-loading" :size="16">
-                    <Loading />
-                  </el-icon>
-                  <i v-else-if="item.fontIcon" :class="item.fontIcon" class="text-base"></i>
-                </button>
-              </el-tooltip>
+                <el-icon v-if="loading" class="is-loading" :size="16">
+                  <Loading />
+                </el-icon>
+                <i v-else-if="item.fontIcon" :class="item.fontIcon" class="text-base"></i>
+              </button>
             </template>
           </component>
         </div>
@@ -116,7 +111,6 @@ import Rotation from '$/components/control-bar/rotation/index.vue'
 import Screenshot from '$/components/control-bar/screenshot/index.vue'
 import Terminal from '$/components/control-bar/terminal/index.vue'
 import Schedule from '$/components/control-bar/schedule/index.vue'
-import Automation from '$/components/control-bar/automation/index.vue'
 import Volume from '$/components/control-bar/volume/index.vue'
 
 const props = defineProps({
@@ -246,12 +240,6 @@ const controlModelList = computed(() => {
       fontIcon: 'i-bi-terminal',
       component: Terminal,
     },
-    automation: {
-      id: 'automation',
-      label: 'automation.name',
-      fontIcon: 'i-bi-robot',
-      component: Automation,
-    },
     schedule: {
       id: 'schedule',
       label: 'device.schedule.name',
@@ -291,9 +279,13 @@ function handleClick(item, trigger) {
     return
   }
 
-  if (item.command && props.device?.id) {
-    window.$preload.adb.shell(props.device.id, item.command)
+  if (!item.command || !props.device?.id) {
+    return
   }
+
+  window.$preload.adb.deviceShell(props.device.id, item.command).catch((error) => {
+    ElMessage.warning(error?.message || String(error))
+  })
 }
 
 async function handleStartMirror() {

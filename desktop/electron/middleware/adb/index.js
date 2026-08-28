@@ -235,8 +235,7 @@ export async function pushImageFromUrl(deviceId, url, remotePath = '/sdcard/DCIM
     }
 
     // 注入 EXIF DateTimeOriginal（拍摄时间），避免被 adb push 后的图因 date_taken=0
-    // 排到相册最末，导致自动化按视觉位置选图时选到用户的旧图。
-    // 仅 JPEG 有效；PNG/WEBP/HEIC 等格式 Android 走 file mtime，无需此步骤。
+    // 排到相册最末。仅 JPEG 有效；PNG/WEBP/HEIC 等格式 Android 走 file mtime，无需此步骤。
     if (mime === 'image/jpeg' || mime === 'image/jpg') {
       try {
         const now = new Date()
@@ -246,7 +245,7 @@ export async function pushImageFromUrl(deviceId, url, remotePath = '/sdcard/DCIM
           .withExif({
             IFD0: {
               DateTime: exifDateTime,
-              Software: 'escrcpy-automation',
+              Software: 'escrcpy',
             },
             exif: {
               DateTimeOriginal: exifDateTime,
@@ -701,6 +700,47 @@ export async function installAdbKeyboard(deviceId) {
   }
 }
 
+export async function downloadToTemp(url, filename = '', hops = 0) {
+  if (hops > 3) {
+    throw new Error('官方页面没有找到可下载的 APK 直链')
+  }
+
+  const res = await fetch(url, {
+    redirect: 'follow',
+    headers: {
+      'user-agent': 'Mozilla/5.0 (Linux; Android 9; ARM64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      accept: '*/*',
+    },
+  })
+  if (!res.ok) {
+    throw new Error(`下载失败 HTTP ${res.status}`)
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer())
+  if (buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4B) {
+    const fromUrl = (() => {
+      try {
+        return path.basename(new URL(res.url || url).pathname)
+      }
+      catch {
+        return ''
+      }
+    })()
+    const name = filename || fromUrl || `magicbox-${Date.now()}.apk`
+    const dest = path.join(os.tmpdir(), String(name).replace(/[^\w.-]/g, '_') || `magicbox-${Date.now()}.apk`)
+    await fs.promises.writeFile(dest, buffer)
+    return dest
+  }
+
+  const html = buffer.toString('utf8')
+  const apkUrls = [...new Set((html.match(/https?:\/\/[^"'\\\s>]+\.apk/gi) || []).map(item => item.replace(/\\+$/, '')))]
+  if (!apkUrls.length) {
+    throw new Error('官方页面没有提供可直接下载的 APK，请绑定本地安装包')
+  }
+
+  return downloadToTemp(apkUrls[0], filename, hops + 1)
+}
+
 export default {
   shell,
   init,
@@ -733,4 +773,5 @@ export default {
   installAdbKeyboard,
   isInstalledAdbKeyboard,
   pushImageFromUrl,
+  downloadToTemp,
 }

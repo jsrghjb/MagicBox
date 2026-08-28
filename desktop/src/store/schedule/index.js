@@ -134,9 +134,7 @@ export const useScheduleStore = defineStore('app-schedule', () => {
     const scheduledAt = getScheduledAt(form)
     const devices = form.devices || []
     const deviceIds = devices.map(getDeviceId).filter(Boolean)
-    const extra = form.scheduleType === 'automation' && form.automationConfig
-      ? JSON.stringify(form.automationConfig)
-      : form.extra
+    const extra = form.extra
 
     return {
       id: form.id || nanoid(),
@@ -151,10 +149,8 @@ export const useScheduleStore = defineStore('app-schedule', () => {
       deviceIds,
       payload: {
         extra,
-        automationConfig: form.automationConfig || null,
       },
       extra,
-      automationConfig: form.automationConfig || null,
       status: ScheduleStatus.PENDING,
       enabled: true,
       scheduledAt,

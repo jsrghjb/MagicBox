@@ -1,93 +1,49 @@
-import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 export const useLicenseStore = defineStore('license', () => {
-  const activated = ref(false)
-  const tier = ref('free') // 'free' | 'personal' | 'team'
-  const deviceLimit = ref(2)
-  const allowedCategories = ref(['general'])
-  const customCategoryLimit = ref(0)
+  const activated = ref(true)
+  const tier = ref('unlimited')
+  const deviceLimit = ref(0)
+  const allowedCategories = ref(['*'])
+  const customCategoryLimit = ref(999)
   const machineId = ref('')
   const activeKey = ref('')
   const expiryDate = ref('')
-
-  // UI state for PLG Hook Upgrade Modal
   const upgradeModalVisible = ref(false)
   const upgradeTargetCategory = ref('')
 
-  const isFree = computed(() => tier.value === 'free')
-  const isPersonal = computed(() => tier.value === 'personal')
-  const isTeam = computed(() => tier.value === 'team')
+  const isFree = computed(() => false)
+  const isPersonal = computed(() => false)
+  const isTeam = computed(() => false)
 
   async function fetchStatus() {
-    try {
-      if (window.$preload?.ipcRenderer) {
-        const res = await window.$preload.ipcRenderer.invoke('license:status')
-        if (res) {
-          activated.value = !!res.activated
-          tier.value = res.tier || 'free'
-          deviceLimit.value = Number(res.deviceLimit || 2)
-          allowedCategories.value = res.allowedCategories || ['general']
-          customCategoryLimit.value = Number(res.customCategoryLimit || 0)
-          machineId.value = res.machineId || ''
-          activeKey.value = res.activeKey || ''
-          expiryDate.value = res.expiryDate || ''
-        }
-      }
-    }
-    catch (err) {
-      console.warn('fetchStatus license warning:', err)
+    return {
+      activated: true,
+      tier: 'unlimited',
+      deviceLimit: 0,
     }
   }
 
-  // Listen for broadcasted license update events across all windows
-  if (window.$preload?.ipcRenderer) {
-    window.$preload.ipcRenderer.on('license:updated', () => {
-      fetchStatus()
-    })
-  }
-
-  async function activateKey(licenseKey) {
-    if (!window.$preload?.ipcRenderer) {
-      return { success: false, error: '环境不支持 IPC' }
-    }
-    const res = await window.$preload.ipcRenderer.invoke('license:activate', { licenseKey })
-    if (res?.success) {
-      await fetchStatus()
-    }
-    return res
+  async function activateKey() {
+    return { success: true }
   }
 
   async function deactivateKey() {
-    if (!window.$preload?.ipcRenderer) {
-      return { success: false, error: '环境不支持 IPC' }
-    }
-    const res = await window.$preload.ipcRenderer.invoke('license:deactivate')
-    await fetchStatus()
-    return res
+    return { success: true }
   }
 
-  function checkCategoryAccess(categoryId) {
-    const category = categoryId || 'general'
-    const allowed = allowedCategories.value || ['general']
-    if (allowed.includes('*')) {
-      return true
-    }
-    return allowed.includes(category)
+  function checkCategoryAccess() {
+    return true
   }
 
-  function checkDeviceLimit(currentCount) {
-    return currentCount < deviceLimit.value
+  function checkDeviceLimit() {
+    return true
   }
 
-  function openUpgradeModal(category = '') {
-    upgradeTargetCategory.value = category
-    upgradeModalVisible.value = true
-  }
+  function openUpgradeModal() {}
 
   function closeUpgradeModal() {
     upgradeModalVisible.value = false
-    upgradeTargetCategory.value = ''
   }
 
   return {

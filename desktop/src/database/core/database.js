@@ -15,7 +15,7 @@ import Dexie from 'dexie'
 const DB_NAME = 'escrcpy_local_db'
 
 // Current database version
-const DB_VERSION = 7
+const DB_VERSION = 8
 
 /**
  * Module schema configuration
@@ -35,16 +35,6 @@ const MODULE_SCHEMAS = {
    */
   schedule: {
     schedules: 'id, scheduleType, timerType, status, enabled, scheduledAt, nextRunAt, updatedAt, *deviceIds, [status+enabled], [enabled+scheduledAt]',
-  },
-  /**
-   * Automation module
-   * - id: Unique script identifier
-   * - deviceId: Bound device id
-   * - category: Script category (general|xiaohongshu|douyin|wechat|ecommerce|custom)
-   * - updatedAt: Last update time
-   */
-  automation: {
-    automation_scripts: 'id, deviceId, category, updatedAt, [deviceId+updatedAt]',
   },
 }
 
@@ -69,8 +59,6 @@ class AppDatabase extends Dexie {
     this.version(DB_VERSION).stores(mergeSchemas())
     // Schedule module
     this.schedules = this.table('schedules')
-    // Automation module
-    this.automation_scripts = this.table('automation_scripts')
   }
 
   /**

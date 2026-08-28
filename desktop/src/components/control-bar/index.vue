@@ -99,7 +99,6 @@ import Rotation from './rotation/index.vue'
 import Screenshot from './screenshot/index.vue'
 import Terminal from './terminal/index.vue'
 import Schedule from './schedule/index.vue'
-import Automation from './automation/index.vue'
 import Volume from './volume/index.vue'
 
 export default {
@@ -113,7 +112,6 @@ export default {
     Explorer,
     Terminal,
     Schedule,
-    Automation,
   },
   props: {
     device: {
@@ -224,11 +222,6 @@ export default {
           label: 'device.terminal.name',
           fontIcon: 'i-bi-terminal',
           component: 'Terminal',
-        },
-        automation: {
-          label: 'automation.name',
-          fontIcon: 'i-bi-robot',
-          component: 'Automation',
         },
         schedule: {
           label: 'device.schedule.name',

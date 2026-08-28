@@ -1,6 +1,6 @@
 /** @type {import('electron-builder').Configuration} */
 export default {
-  productName: '魔屏助手',
+  productName: '魔法百宝箱',
   appId: 'org.viarotel.moping-assistant',
 
   directories: {

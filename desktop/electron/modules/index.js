@@ -1,5 +1,3 @@
-export { default as automationModule } from './automation/index.js'
-export { default as clusterControlModule } from './cluster-control/index.js'
 export { default as controlModule } from './control/index.js'
 export { default as explorerModule } from './explorer/index.js'
 export { default as licenseModule } from './license/index.js'

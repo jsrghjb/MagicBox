@@ -74,12 +74,6 @@
                 }"
               />
             </el-form-item>
-
-            <AutomationScriptSelector
-              v-if="model.scheduleType === 'automation'"
-              v-model="model.automationConfig"
-              :device-id="scheduleDeviceId"
-            />
           </el-card>
 
           <el-card :header="$t('device.schedule.section.frequency')" shadow="never" class="el-card--beautify">
@@ -213,7 +207,6 @@ import { Cron } from 'croner'
 
 import InputPath from '$/components/preference-form/components/input-path/index.vue'
 import CronSelector from '$/components/cron-selector/index.vue'
-import AutomationScriptSelector from '$/components/automation-script-selector/index.vue'
 
 import {
   timeUnit as intervalModel,
@@ -239,11 +232,6 @@ const cronValid = ref(true)
 
 const scheduleModel = computed(() => scheduleStore.model)
 
-const scheduleDeviceId = computed(() => {
-  const first = devices.value?.[0]
-  return typeof first === 'string' ? first : first?.id || ''
-})
-
 const model = ref({
   scheduleType: void 0,
   timerType: 'timeout',
@@ -252,7 +240,6 @@ const model = ref({
   intervalType: 'second',
   cronExpression: '',
   extra: void 0,
-  automationConfig: null,
 })
 
 const rules = computed(() => {
@@ -320,23 +307,6 @@ const rules = computed(() => {
   if (['install'].includes(model.value.scheduleType)) {
     baseRules.extra = [
       { required: true, message: window.t('common.required'), trigger: 'blur' },
-    ]
-  }
-
-  if (model.value.scheduleType === 'automation') {
-    baseRules.automationConfig = [
-      {
-        required: true,
-        trigger: 'change',
-        validator: (rule, value, callback) => {
-          if (!value?.scriptId) {
-            callback(new Error(window.t('common.required')))
-          }
-          else {
-            callback()
-          }
-        },
-      },
     ]
   }
 
@@ -414,10 +384,6 @@ async function submit() {
       devices: devices.value,
     }
 
-    if (model.value.scheduleType === 'automation' && model.value.automationConfig) {
-      scheduleData.extra = JSON.stringify(model.value.automationConfig)
-    }
-
     await scheduleStore.add(scheduleData)
     await sleep()
     await ElMessage.success(window.t('common.success'))
@@ -446,7 +412,6 @@ async function onClosed() {
     intervalType: 'second',
     cronExpression: '',
     extra: void 0,
-    automationConfig: null,
   }
 
   dialog.options?.onClosed?.()
@@ -456,9 +421,8 @@ function disabledDate(time) {
   return time.getTime() < Date.now() - 24 * 60 * 60 * 1000
 }
 
-async function onScheduleChange(val) {
+async function onScheduleChange() {
   model.value.extra = void 0
-  model.value.automationConfig = null
 }
 
 function onCronValidChange(valid) {

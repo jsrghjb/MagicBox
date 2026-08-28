@@ -35,12 +35,6 @@ export { BaseStore, db, deleteDatabase, getDatabase, resetDatabase } from './cor
 // Hooks
 export { useLiveQuery, useLiveQueryWithDeps, useLiveQueryWithState } from './hooks/index.js'
 
-// Automation module
-export {
-  automationDataStore,
-  useAutomationScripts,
-} from './modules/automation/index.js'
-
 // Schedule module
 export {
   ActiveScheduleStatuses,

@@ -115,7 +115,7 @@ export default {
 
       tray = new Tray(trayPath)
 
-      tray.setToolTip('魔屏助手')
+      tray.setToolTip('魔法百宝箱')
 
       tray.on('click', () => {
         showApp()

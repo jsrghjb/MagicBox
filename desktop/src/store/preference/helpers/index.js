@@ -136,7 +136,7 @@ export function mergeConfig(object, sources) {
 
 export function getScrcpyExcludeKeys() {
   const value = modelEntries.reduce((arr, [key, item]) => {
-    if (item.customized || ['common', 'automation'].includes(item.parentId)) {
+    if (item.customized || item.parentId === 'common') {
       arr.push(key)
     }
     return arr

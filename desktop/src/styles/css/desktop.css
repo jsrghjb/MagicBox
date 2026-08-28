@@ -107,27 +107,7 @@ html:not(.dark) .el-segmented {
   padding: 3px !important;
 }
 
-/* 5. Device Card & Video Canvas Border Adjustments */
-html:not(.dark) .cluster-device-card {
-  background: #ffffff !important;
-  border-radius: 12px !important;
-  border: 1px solid #e2e8f0 !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02) !important;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-html:not(.dark) .cluster-device-card:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04) !important;
-}
-
-html:not(.dark) .cluster-video-canvas {
-  border-radius: 8px !important;
-  border: 1px solid #e2e8f0 !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.01) !important;
-}
-
-/* 6. Settings Collapse Adjustments */
+/* 5. Settings Collapse Adjustments */
 html:not(.dark) .el-collapse-item {
   border-radius: 10px !important;
   border: 1px solid #e2e8f0 !important;
