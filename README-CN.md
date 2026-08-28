@@ -19,7 +19,15 @@
 
 ## 安装
 
-请到 [Releases](https://github.com/jsrghjb/MagicBox/releases) 下载对应平台安装包。
+安装包发布在本仓库的 [GitHub Releases](https://github.com/jsrghjb/MagicBox/releases/latest)。
+
+应用内「检查更新」也会从这里拉取 `latest.yml` / `latest-mac.yml` 安装包。仓库公开后即可自动更新。
+
+请按系统下载：
+
+- macOS：`MagicBox-*-mac-arm64.dmg` 或 `MagicBox-*-mac-x64.dmg`
+- Windows：`MagicBox-*-win-setup-x64.exe`
+- Linux：`MagicBox-*-linux-x64.AppImage` 或 `.deb`
 
 ## 文档
 

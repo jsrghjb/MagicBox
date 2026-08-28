@@ -19,7 +19,7 @@
 
 ## Установка
 
-Скачайте сборку со страницы [Releases](https://github.com/jsrghjb/MagicBox/releases).
+Установочные файлы публикуются в [GitHub Releases](https://github.com/jsrghjb/MagicBox/releases/latest). Проверка обновлений в приложении использует тот же адрес.
 
 ## Документация
 

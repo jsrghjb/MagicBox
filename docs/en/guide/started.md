@@ -8,7 +8,7 @@ title: Quick Start
 
 ### Manual installation via released packages
 
-- [GitHub Releases](https://github.com/jsrghjb/MagicBox/releases)
+- [GitHub Releases](https://github.com/jsrghjb/MagicBox/releases/latest)
 
 ## USB Connection
 

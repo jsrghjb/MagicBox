@@ -19,7 +19,15 @@ Graphical Android device mirroring and a local toolbox for setup, diagnostics, a
 
 ## Installation
 
-Download the latest build from the [Releases](https://github.com/jsrghjb/MagicBox/releases) page.
+Installers are published to this repo’s [GitHub Releases](https://github.com/jsrghjb/MagicBox/releases/latest).
+
+In-app “Check for updates” downloads from the same place (`latest.yml` / `latest-mac.yml`). Make the repository public so auto-update can work.
+
+Download by platform:
+
+- macOS: `MagicBox-*-mac-arm64.dmg` or `MagicBox-*-mac-x64.dmg`
+- Windows: `MagicBox-*-win-setup-x64.exe`
+- Linux: `MagicBox-*-linux-x64.AppImage` or `.deb`
 
 ## Documentation
 

@@ -14,6 +14,9 @@
         <el-button type="primary" link icon="Refresh" class="!p-0" @click="checkUpdate">
           检查更新
         </el-button>
+        <el-button type="primary" link class="!p-0" @click="openDownloadPage">
+          下载安装包
+        </el-button>
       </div>
     </div>
 
@@ -108,6 +111,10 @@ function installNow() {
   window.$preload.ipcRenderer.send('quit-and-install')
 }
 
+function openDownloadPage() {
+  window.$preload.ipcRenderer.send('open-download-page')
+}
+
 let unbindEvents = () => {}
 
 onMounted(() => {
@@ -136,8 +143,18 @@ onMounted(() => {
   const onUpdateError = (event, err) => {
     updateStatus.value = 'idle'
     updateDialogVisible.value = false
-    ElMessage.error('检查更新失败，请稍后重试！')
     console.error('Update error:', err)
+    ElMessageBox.confirm(
+      '暂时无法从 GitHub Releases 检查更新。是否打开下载页手动获取安装包？',
+      '检查更新失败',
+      {
+        confirmButtonText: '打开下载页',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    ).then(() => {
+      openDownloadPage()
+    }).catch(() => {})
   }
 
   ipc.on('update-available', onUpdateAvailable)

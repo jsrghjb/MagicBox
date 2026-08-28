@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 
 export * from './extra/index.js'
 export * from './logo/index.js'
+export * from './update-feed.js'
 export * from './which/index.js'
 
 export const desktopPath = process.env.DESKTOP_PATH

@@ -1,3 +1,5 @@
+import { UPDATE_FEED } from './electron/configs/update-feed.js'
+
 /** @type {import('electron-builder').Configuration} */
 export default {
   productName: '魔法百宝箱',
@@ -33,7 +35,7 @@ export default {
       { target: 'portable', arch: ['x64', 'arm64'] },
       // { target: 'appx', arch: ['x64', 'arm64'] },
     ],
-    artifactName: '${productName}-${version}-win-${arch}.${ext}',
+    artifactName: 'MagicBox-${version}-win-${arch}.${ext}',
     extraResources: {
       from: 'electron/resources/extra',
       to: 'extra',
@@ -42,7 +44,7 @@ export default {
   },
 
   nsis: {
-    artifactName: '${productName}-${version}-win-setup-${arch}.${ext}',
+    artifactName: 'MagicBox-${version}-win-setup-${arch}.${ext}',
     shortcutName: '${productName}',
     uninstallDisplayName: '${productName}',
     oneClick: false,
@@ -52,7 +54,7 @@ export default {
   },
 
   portable: {
-    artifactName: '${productName}-${version}-win-portable-${arch}.${ext}',
+    artifactName: 'MagicBox-${version}-win-portable-${arch}.${ext}',
     requestExecutionLevel: 'user',
   },
 
@@ -69,7 +71,7 @@ export default {
       { target: 'dmg', arch: ['x64', 'arm64'] },
       { target: 'zip', arch: ['x64', 'arm64'] },
     ],
-    artifactName: '${productName}-${version}-mac-${arch}.${ext}',
+    artifactName: 'MagicBox-${version}-mac-${arch}.${ext}',
     extraResources: {
       from: 'electron/resources/extra',
       to: 'extra',
@@ -98,7 +100,7 @@ export default {
       { target: 'deb', arch: ['x64', 'arm64'] },
       // { target: 'flatpak', arch: ['x64', 'arm64'] },
     ],
-    artifactName: '${productName}-${version}-linux-${arch}.${ext}',
+    artifactName: 'MagicBox-${version}-linux-${arch}.${ext}',
     extraResources: {
       from: 'electron/resources/extra',
       to: 'extra',
@@ -129,10 +131,7 @@ export default {
 
   npmRebuild: true,
 
-  publish: {
-    provider: 'github',
-    owner: 'jsrghjb',
-    repo: 'MagicBox',
-    updaterCacheDirName: 'magicbox-updater',
-  },
+  generateUpdatesFilesForAllChannels: true,
+
+  publish: UPDATE_FEED,
 }

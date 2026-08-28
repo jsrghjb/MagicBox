@@ -8,7 +8,7 @@ title: 快速上手
 
 ### 手动安装（通过发行包）
 
-- [GitHub 发布页](https://github.com/jsrghjb/MagicBox/releases)
+- [GitHub 发布页](https://github.com/jsrghjb/MagicBox/releases/latest)
 
 ## USB连接方式
 

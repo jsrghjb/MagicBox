@@ -53,7 +53,9 @@ jobs:
           flatpak --user install -y --noninteractive flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08 org.electronjs.Electron2.BaseApp//23.08
 
       - name: Build ${{ matrix.platform }}
-        run: pnpm ${{ matrix.build_command }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm ${{ matrix.build_command }} -- --publish always
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
