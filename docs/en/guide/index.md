@@ -2,11 +2,11 @@
 title: Guide
 ---
 
-# Escrcpy: A Graphical Android Device Control Tool Based on Electron
+# MagicBox: A Graphical Android Device Control Tool Based on Electron
 
-## What is Escrcpy?
+## What is MagicBox?
 
-Escrcpy is a graphical Android device control tool developed based on Electron. Built upon the renowned open-source project Scrcpy, it provides users with a more user-friendly and feature-rich graphical interface. With Escrcpy, users can easily display and control Android devices on their computers, enjoying a high-definition, low-latency screen mirroring experience.
+MagicBox is a graphical Android device control tool developed based on Electron. Built upon the renowned open-source project Scrcpy, it provides users with a more user-friendly and feature-rich graphical interface. With MagicBox, users can easily display and control Android devices on their computers, enjoying a high-definition, low-latency screen mirroring experience.
 
 ## Core Features
 
@@ -35,7 +35,7 @@ Escrcpy is a graphical Android device control tool developed based on Electron. 
 
 ## Use Cases
 
-Escrcpy is ideal for the following scenarios:
+MagicBox is ideal for the following scenarios:
 
 1. Developers debugging Android apps on their computers
 2. Gamers playing mobile games on larger screens
@@ -45,7 +45,7 @@ Escrcpy is ideal for the following scenarios:
 
 ## Cross-Platform Support
 
-Escrcpy supports major operating systems:
+MagicBox supports major operating systems:
 
 - Windows
 - macOS
@@ -53,7 +53,7 @@ Escrcpy supports major operating systems:
 
 ## Technical Advantages
 
-As the graphical interface version of Scrcpy, Escrcpy retains all the advantages of Scrcpy while adding:
+As the graphical interface version of Scrcpy, MagicBox retains all the advantages of Scrcpy while adding:
 
 - A more intuitive device management interface
 - More convenient connection methods
@@ -62,7 +62,7 @@ As the graphical interface version of Scrcpy, Escrcpy retains all the advantages
 
 ## Future Development
 
-The project team continues to improve Escrcpy, with future plans including:
+The project team continues to improve MagicBox, with future plans including:
 
 - Enhancing the way mirror window position and size are set
 - Optimizing the batch device connection experience
@@ -70,12 +70,12 @@ The project team continues to improve Escrcpy, with future plans including:
 
 ## How to use
 
-Escrcpy is a completely free and open-source project. Please refer to the specific usage:
+MagicBox is a completely free and open-source project. Please refer to the specific usage:
 
 [Get Started 👉](/guide/started)
 
 ## Conclusion
 
-Escrcpy brings a modern graphical interface and enhanced features to Scrcpy, making Android device control simpler and more efficient. Whether you're a developer or an average user, Escrcpy can provide an outstanding device control experience. Its open-source and free nature also allows more people to use this excellent tool without hesitation.
+MagicBox brings a modern graphical interface and enhanced features to Scrcpy, making Android device control simpler and more efficient. Whether you're a developer or an average user, MagicBox can provide an outstanding device control experience. Its open-source and free nature also allows more people to use this excellent tool without hesitation.
 
-If you're looking for a powerful, user-friendly Android device control tool, Escrcpy is definitely worth trying!
+If you're looking for a powerful, user-friendly Android device control tool, MagicBox is definitely worth trying!

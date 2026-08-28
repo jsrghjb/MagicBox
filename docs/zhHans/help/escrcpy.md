@@ -1,4 +1,4 @@
-# Escrcpy
+# 魔法百宝箱
 
 ### 电脑连接后无法识别设备
 
@@ -9,9 +9,9 @@
 
 > 在Scrcpy@2.4+及以上版本中，解决方案如下：
 
-1. Escrcpy设置：进入`偏好设置` → `输入控制` → `键盘模式`，选择`uhid`模式。
+1. 魔法百宝箱设置：进入`偏好设置` → `输入控制` → `键盘模式`，选择`uhid`模式。
 2. 设备输入法准备：安装支持物理键盘的输入法（推荐微信输入法）并完成设置。
-3. 启动镜像：点击Escrcpy中的`开始镜像`。验证：设备的`设置` → `系统` → `语言与输入`中应显示`物理键盘`和`屏幕键盘`选项。
+3. 启动镜像：点击魔法百宝箱中的`开始镜像`。验证：设备的`设置` → `系统` → `语言与输入`中应显示`物理键盘`和`屏幕键盘`选项。
 4. 设备输入设置：在`屏幕键盘`设置中启用微信输入法。在`物理键盘`设置中配置键盘布局与电脑键盘一致（仅需设置一次）。
 5. 电脑输入准备：将输入模式设置为英文（重要）。
 6. 切换输入语言：使用`Ctrl` + `Shift`切换中英文。
@@ -25,11 +25,11 @@
 
 ### 数据线连接后点击无线模式无响应
 
-请再次点击，或点击刷新设备。通常不会超过两次点击。若仍无效，请提交设备型号和安卓版本至[Issues](https://github.com/viarotel-org/escrcpy/issues)
+请再次点击，或点击刷新设备。通常不会超过两次点击。若仍无效，请提交设备型号和安卓版本至[Issues](https://github.com/jsrghjb/MagicBox/issues)
 
 ### 为何设备交互控制栏未设计为自动贴边的悬浮菜单？
 
-需注意，原则上Escrcpy只是基于Scrcpy的GUI版本，尽管扩展了部分功能，但这些扩展不影响Scrcpy核心。实现该特性需修改底层Scrcpy代码，这会导致Escrcpy更难同步Scrcpy更新，弊大于利。
+需注意，魔法百宝箱是基于 Scrcpy 的图形界面。实现该特性需要修改底层 Scrcpy 代码，会导致更难同步 Scrcpy 更新，弊大于利。
 
 因此，经慎重考虑，我们决定采用现有方案，并期待Scrcpy未来原生支持交互控制栏。
 
@@ -56,13 +56,13 @@
 
 1. 在菜单中选择`偏好设置`，点击`全局模式`右上角的重置配置按钮。
 2. 进入`设备列表`页面重试启用镜像。
-3. 确保已下载安装最新版`Escrcpy`。
+3. 确保已下载安装最新版`魔法百宝箱`。
 4. 按`Ctrl` + `Shift` + `I`打开开发者工具检查报错信息。
-5. 若有报错，截图并提交至[反馈Issues](https://github.com/viarotel-org/escrcpy/issues)页面。
+5. 若有报错，截图并提交至[反馈Issues](https://github.com/jsrghjb/MagicBox/issues)页面。
 
 ### macOS窗口最小化至系统托盘图标未找到
 
-> 通常因系统托盘图标过多溢出隐藏了Escrcpy图标。可尝试使用以下工具：
+> 通常因系统托盘图标过多溢出隐藏了魔法百宝箱图标。可尝试使用以下工具：
 
 - [iBar](https://www.better365.cn/ibar.html)
 - [Bartender](https://www.macbartender.com/)
@@ -72,7 +72,7 @@
 > 通常因软件包未签名导致。可尝试以下方案：
 
 1. 打开终端执行`sudo spctl --master-disable`允许任何来源软件。
-2. 打开终端执行`sudo xattr -r -d com.apple.quarantine /Applications/Escrcpy.app`尝试修复损坏提示。
+2. 打开终端执行`sudo xattr -r -d com.apple.quarantine /Applications/魔法百宝箱.app`尝试修复损坏提示。
 
 ### 无法定位程序输入点DiscardvirtualMemory于动态链接库Kernel32.dll上
 
@@ -99,7 +99,7 @@
 > 部分流行发行版（如Ubuntu 24.04）对AppImage应用新增了沙盒使用限制。临时解决方案如下：
 
 ```shell
-sudo chmod 4755 /opt/Escrcpy/chrome-sandbox
+sudo chmod 4755 /opt/魔法百宝箱/chrome-sandbox
 ```
 
 ### 调整投屏窗口大小后出现黑边
@@ -110,6 +110,6 @@ sudo chmod 4755 /opt/Escrcpy/chrome-sandbox
 
 可按以下步骤排查：
 
-- 检查 Windows 防火墙是否拦截相关程序。若已开启防火墙，请将 Escrcpy 依赖的二进制文件（如 `adb`、`scrcpy`、`gnirehtet` 等）加入防火墙允许列表，或临时关闭防火墙后重试。
+- 检查 Windows 防火墙是否拦截相关程序。若已开启防火墙，请将 魔法百宝箱 依赖的二进制文件（如 `adb`、`scrcpy`、`gnirehtet` 等）加入防火墙允许列表，或临时关闭防火墙后重试。
 - 重置「偏好设置」中的配置文件，避免因配置异常导致连接失败。
 - 确保软件安装路径中不包含中文、空格或特殊字符，建议使用纯英文路径。

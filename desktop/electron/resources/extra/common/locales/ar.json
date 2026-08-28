@@ -1,8 +1,6 @@
 {
   "about.description": "📱 عرض جهاز الأندرويد الخاص بك والتحكم فيه بشكل مرئي باستخدام scrcpy، من خلال الأجهزة التي تدعم تقنية Electron.",
   "about.docs.name": "وثائق المساعدة",
-  "about.donate.description": "إذا كان المشروع ذا فائدة لك، يمكنك أن تدعمني بشراء قهوة لتبقيني متحفزًا لتحسينه 😛",
-  "about.donate.title": "التبرع",
   "about.name": "حول",
   "about.update": "التحقق من وجود تحديثات",
   "about.update-available.confirm": "تحديث",

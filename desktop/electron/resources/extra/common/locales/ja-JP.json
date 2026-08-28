@@ -1,8 +1,6 @@
 {
   "about.description": "📱 Scrcpy は Android デバイスをグラフィカルに表示とコントロールを行います。Powered by Electron",
   "about.docs.name": "ヘルプドキュメント",
-  "about.donate.description": "このプロジェクトがお役に立てたのであれば、私にコーヒーをご馳走して改善へのエネルギーをください 😛",
-  "about.donate.title": "寄付",
   "about.name": "バージョン情報",
   "about.update": "更新を確認",
   "about.update-available.confirm": "更新",

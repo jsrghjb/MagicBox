@@ -4,8 +4,8 @@
   "version": "2.11.1",
   "private": true,
   "description": "A modular setup and runtime framework for Electron with plugins, window management, and contextual dependency injection.",
-  "author": "viarotel",
-  "homepage": "https://github.com/viarotel-org/escrcpy",
+  "author": "万象",
+  "homepage": "https://github.com/jsrghjb/MagicBox",
   "sideEffects": false,
   "exports": {
     "./main": "./dist/main/index.mjs",

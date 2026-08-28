@@ -1,8 +1,6 @@
 {
   "about.description": "📱 Отображайте и управляйте своим Android-устройством с помощью scrcpy в графическом режиме, созданный на базе Electron.",
   "about.docs.name": "Документация",
-  "about.donate.description": "Если этот проект помог вам, вы можете угостить меня кофе, чтобы у меня было больше энергии для его улучшения 😛",
-  "about.donate.title": "Пожертвование",
   "about.name": "О программе",
   "about.update": "Проверить обновления",
   "about.update-available.confirm": "Обновить",

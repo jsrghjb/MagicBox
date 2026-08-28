@@ -3,7 +3,7 @@ title: Gnirehtet
 ---
 
 > [!IMPORTANT]
-> Escrcpy is built on the following open-source projects. The relevant content is provided as is for user reference and will be updated periodically.
+> MagicBox is built on the following open-source projects. The relevant content is provided as is for user reference and will be updated periodically.
 
 # Gnirehtet (v2.5.1)
 

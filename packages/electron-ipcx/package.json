@@ -4,8 +4,8 @@
   "version": "2.11.1",
   "private": false,
   "description": "A more intuitive electron ipc system with function proxy support",
-  "author": "viarotel",
-  "homepage": "https://github.com/viarotel-org/escrcpy",
+  "author": "万象",
+  "homepage": "https://github.com/jsrghjb/MagicBox",
   "sideEffects": false,
   "exports": {
     "./main": "./dist/main/index.mjs",

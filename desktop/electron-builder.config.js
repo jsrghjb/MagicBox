@@ -1,7 +1,7 @@
 /** @type {import('electron-builder').Configuration} */
 export default {
   productName: '魔法百宝箱',
-  appId: 'org.viarotel.moping-assistant',
+  appId: 'com.jsrghjb.magicbox',
 
   directories: {
     output: 'dist-release',
@@ -57,9 +57,9 @@ export default {
   },
 
   appx: {
-    identityName: 'viarotel.MopingAssistant',
+    identityName: 'jsrghjb.MagicBox',
     publisher: 'CN=E67CC10B-A1BE-413C-BC3B-6E1137E0742D',
-    publisherDisplayName: 'viarotel',
+    publisherDisplayName: '万象',
     languages: ['zh-CN', 'en-US', 'zh-TW'],
   },
 
@@ -91,7 +91,7 @@ export default {
 
   linux: {
     icon: 'logo.icns',
-    maintainer: 'viarotel@qq.com',
+    maintainer: 'huangjb@staryea.com',
     category: 'Utility',
     target: [
       { target: 'AppImage', arch: ['x64', 'arm64'] },
@@ -131,8 +131,8 @@ export default {
 
   publish: {
     provider: 'github',
-    owner: 'viarotel-org',
-    repo: 'escrcpy',
-    updaterCacheDirName: 'moping-assistant-updater',
+    owner: 'jsrghjb',
+    repo: 'MagicBox',
+    updaterCacheDirName: 'magicbox-updater',
   },
 }

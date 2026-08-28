@@ -8,22 +8,15 @@ title: 快速上手
 
 ### 手动安装（通过发行包）
 
-- [Github发布页](https://github.com/viarotel-org/escrcpy/releases)
-- [Gitee发布页（国内镜像源）](https://gitee.com/viarotel-org/escrcpy/releases)
-- [Gitcode发布页（国内镜像源）](https://gitcode.com/viarotel-org/escrcpy/releases)
-- [重庆大学开源软件镜像站（国内镜像源）](https://mirrors.cqu.edu.cn/github-release/viarotel-org/escrcpy/)
-
-### macOS用户可通过Homebrew安装
-
-详见 [homebrew-escrcpy](https://github.com/viarotel-org/homebrew-escrcpy)
+- [GitHub 发布页](https://github.com/jsrghjb/MagicBox/releases)
 
 ## USB连接方式
 
 > 注意：若手机弹出调试授权提示，请点击允许
 
 1. 在安卓设备上[启用开发者模式](https://www.bing.com/search?q=启用安卓开发者模式)和[USB调试](https://www.bing.com/search?q=启用安卓USB调试)功能
-2. 启动Escrcpy并将安卓设备通过USB连接电脑
-3. Escrcpy设备列表应已检测到您的设备，点击"开始镜像"
+2. 启动魔法百宝箱并将安卓设备通过USB连接电脑
+3. 魔法百宝箱设备列表应已检测到您的设备，点击"开始镜像"
 4. 开始使用！
 
 ## 无线连接方式
@@ -42,7 +35,7 @@ title: 快速上手
 > 注意：需在无线调试页面获取设备无线地址（通常为连接WiFi时分配的IP地址）和端口号（默认为5555）
 
 1. 先完成USB连接方式的步骤1-2
-2. 在Escrcpy中输入设备IP地址和端口号，点击"连接设备"
+2. 在魔法百宝箱中输入设备IP地址和端口号，点击"连接设备"
 3. 此时设备列表应显示您的手机，点击"开始镜像"
 4. 开始使用！
 
@@ -50,7 +43,7 @@ title: 快速上手
 
 > 注意：这些平台未预装[Scrcpy](/reference/scrcpy/)，需手动安装
 
-**Escrcpy@1.27.1+版本已初步集成scrcpy二进制文件，无需手动安装**
+**魔法百宝箱已内置 scrcpy 二进制文件，通常无需再手动安装**
 
 1. Linux用户参考[安装文档](/reference/scrcpy/linux.md)
 2. macOS用户参考[安装文档](/reference/scrcpy/macos.md)

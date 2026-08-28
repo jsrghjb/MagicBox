@@ -1,8 +1,6 @@
 {
   "about.description": "本地图形化工具箱：投屏管理，以及后续加入的软路由等能力",
   "about.docs.name": "帮助文档",
-  "about.donate.description": "如果该项目帮到你的话，可以请我喝杯咖啡，让我更有精神完善该项目 😛",
-  "about.donate.title": "捐赠",
   "about.name": "关于",
   "about.update": "检查并更新",
   "about.update-available.confirm": "更新",

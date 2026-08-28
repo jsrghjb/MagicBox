@@ -2,6 +2,6 @@
 title: 联系我们
 ---
 
-- 邮箱: **viarotel@qq.com**
-- 微信: **viarotel**
-- QQ: **523469508**
+- GitHub: **https://github.com/jsrghjb/MagicBox**
+- 问题反馈: **https://github.com/jsrghjb/MagicBox/issues**
+- 邮箱: **huangjb@staryea.com**

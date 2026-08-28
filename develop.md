@@ -1,8 +1,8 @@
-# Escrcpy Developer Guide
+# MagicBox Developer Guide
 
 ## Introduction
 
-[Escrcpy](https://github.com/viarotel-org/escrcpy) is an Electron-based graphical user interface for Scrcpy, designed to facilitate the display and control of Android devices. This comprehensive guide aims to help developers contribute to the project effectively.
+[MagicBox](https://github.com/jsrghjb/MagicBox) is an Electron-based graphical interface for Scrcpy, used to display and control Android devices and run local toolbox helpers.
 
 ## Getting Started
 
@@ -15,8 +15,8 @@
 
 ```shell
 # Clone repository
-git clone https://github.com/viarotel-org/escrcpy.git
-cd escrcpy
+git clone https://github.com/jsrghjb/MagicBox.git
+cd MagicBox
 
 # Enable pnpm package manager
 corepack enable pnpm
@@ -124,5 +124,5 @@ Alternatively, you can use [electron-fix](https://github.com/pangxieju/electron-
 
 ## Support and Contact
 
-- Bug Reports: [GitHub Issues](https://github.com/viarotel-org/escrcpy/issues)
-- Contact: viarotel@qq.com
+- Bug Reports: [GitHub Issues](https://github.com/jsrghjb/MagicBox/issues)
+- Contact: huangjb@staryea.com

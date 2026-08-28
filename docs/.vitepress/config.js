@@ -3,15 +3,11 @@ import { defineConfig } from 'vitepress'
 import { withSidebar } from 'vitepress-sidebar'
 import { withI18n } from 'vitepress-i18n'
 
-export const appName = 'Escrcpy'
-export const appDescription = 'Control your Android device with graphical scrcpy.'
+export const appName = '魔法百宝箱'
+export const appDescription = 'Local Android mirroring and toolbox.'
 
 export const defaultLocale = 'en'
 export const locales = [defaultLocale, 'zhHans']
-
-export function useImgTag(src = '') {
-  return `<img src="${src}" style="width: 20px; height: 20px;" class="hover:opacity-100 opacity-70 duration-500" />`
-}
 
 const viteConfig = {
   server: {
@@ -38,24 +34,6 @@ const vitePressConfig = {
   description: appDescription,
   head: [
     ['link', { rel: 'icon', href: '/images/logo.ico' }],
-    // AdSense
-    [
-      'script',
-      {
-        src: 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5328953201873088',
-        async: '',
-        crossorigin: 'anonymous',
-      },
-    ],
-    // Baidu analytics
-    [
-      'script',
-      {
-        src: 'https://cdn.busuanzi.cc/busuanzi/3.6.9/busuanzi.min.js',
-        async: '',
-        defer: true,
-      },
-    ],
   ],
 
   outDir: '../dist-docs',
@@ -68,47 +46,11 @@ const vitePressConfig = {
     socialLinks: [
       {
         icon: 'github',
-        link: 'https://github.com/viarotel/',
-      },
-      {
-        icon: {
-          svg: useImgTag('https://gitee.com/favicon.ico'),
-        },
-        link: 'https://gitee.com/viarotel',
-      },
-      {
-        icon: {
-          svg: useImgTag('/images/logo-gitcode.png'),
-        },
-        link: 'https://gitcode.com/viarotel-org',
-      },
-      {
-        icon: {
-          svg: useImgTag(
-            'https://static.hdslb.com/images/favicon.ico',
-          ),
-        },
-        link: 'https://space.bilibili.com/274990176',
-      },
-      {
-        icon: {
-          svg: useImgTag(
-            'https://lf3-cdn-tos.bytescm.com/obj/static/xitu_juejin_web//static/favicons/favicon-32x32.png',
-          ),
-        },
-        link: 'https://juejin.cn/user/1275089219751944',
+        link: 'https://github.com/jsrghjb/MagicBox',
       },
     ],
     footer: {
-      message: `
-        <span>Views <span id="busuanzi_site_pv">0</span>, </span>
-        <span>Visitors <span id="busuanzi_site_uv">0</span></span>
-        <br />
-        <span>TodayViews <span id="busuanzi_today_pv">0</span>, </span>
-        <span>TodayVisitors <span id="busuanzi_today_uv">0</span></span>
-        <br />
-      `,
-      copyright: `Copyright © 2023-${new Date().getFullYear()} Powered by viarotel`,
+      copyright: `Copyright © ${new Date().getFullYear()} 万象`,
     },
   },
 
@@ -117,7 +59,7 @@ const vitePressConfig = {
   },
 
   sitemap: {
-    hostname: 'https://viarotel.eu.org',
+    hostname: 'https://github.com/jsrghjb/MagicBox',
   },
 
   vite: viteConfig,
@@ -128,15 +70,10 @@ const vitePressConfig = {
 const vitePressI18nConfig = {
   locales,
   rootLocale: defaultLocale,
-  searchProvider: 'algolia',
-  searchOptions: {
-    appId: 'XY26T0U1UR',
-    apiKey: 'd92446a9ce99be7089c291a2dae47778',
-    indexName: 'viarotelio',
-  },
+  searchProvider: 'local',
   description: {
-    en: 'Control your Android device with graphical scrcpy.',
-    zhHans: '使用图形化的 scrcpy 显示和控制你的安卓设备',
+    en: 'Local Android mirroring and toolbox.',
+    zhHans: '本地图形化 Android 投屏管理与工具箱',
   },
   themeConfig: {
     en: {
@@ -145,9 +82,7 @@ const vitePressI18nConfig = {
         { text: 'Reference', link: '/reference' },
         { text: 'Help', link: '/help' },
         { text: 'Changelog', link: '/changelog' },
-        { text: 'Donate', link: '/donate' },
         { text: 'Contact', link: '/contact' },
-        { text: 'Blog', link: 'https://blog.viarotel.eu.org/en' },
       ],
     },
     zhHans: {
@@ -156,9 +91,7 @@ const vitePressI18nConfig = {
         { text: '参考', link: '/zhHans/reference' },
         { text: '帮助', link: '/zhHans/help' },
         { text: '更新日志', link: '/zhHans/changelog' },
-        { text: '捐赠', link: '/zhHans/donate' },
         { text: '联系', link: '/zhHans/contact' },
-        { text: '博客', link: 'https://blog.viarotel.eu.org/' },
       ],
     },
   },
@@ -176,7 +109,7 @@ const vitePressSidebarConfig = [
     useFolderLinkFromIndexFile: true,
     includeFolderIndexFile: false,
     useFolderTitleFromIndexFile: true,
-    manualSortFileNameByPriority: ['index.md', 'guide', 'reference', 'help', 'changelog.md', 'donate.md', 'contact.md', 'started.md', 'milestones.md'],
+    manualSortFileNameByPriority: ['index.md', 'guide', 'reference', 'help', 'changelog.md', 'contact.md', 'started.md', 'milestones.md'],
   })),
 ]
 

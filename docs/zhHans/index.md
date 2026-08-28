@@ -3,12 +3,12 @@
 layout: home
 
 hero:
-  name: Escrcpy
-  text: 使用图形化的 scrcpy 显示和控制你的安卓设备
-  tagline: Powered by electron.
+  name: 魔法百宝箱
+  text: 本地图形化 Android 投屏管理与工具箱
+  tagline: MagicBox
   image:
     src: /images/logo@1024x1024.png
-    alt: Escrcpy
+    alt: 魔法百宝箱
   actions:
     - theme: brand
       text: 快速上手 👉
@@ -17,33 +17,24 @@ hero:
       text: 帮助
       link: /zhHans/help/escrcpy
     - theme: alt
-      text: Github
-      link: https://github.com/viarotel-org/escrcpy
+      text: GitHub
+      link: https://github.com/jsrghjb/MagicBox
 features:
   - icon: 🖥️
     title: 内嵌镜像
-    details: '独立内嵌窗口，自动适配分辨率与屏幕方向，内置一体化快捷操作'
-  - icon: ⌨️
-    title: 键盘映射
-    details: '直接在内嵌镜像上配置点击、摇杆、滑动、滚动与自动化映射'
-  - icon: 🔄
-    title: 多设备群控
-    details: '单窗口同控多台设备，广播输入，支持批量截图与 APK 安装'
+    details: '独立内嵌窗口，自动适配分辨率与屏幕方向'
   - icon: 🎛️
     title: 集成控制栏
-    details: '可拖拽排序的紧凑侧边栏，涵盖旋转、截图、应用、文件、终端、AI 助手与自动化'
-  - icon: 🤖
-    title: 智能控制
-    details: '基于 AutoGLM 的自然语言指令，智能操控 Android 设备'
-  - icon: 🏃
-    title: 自动化执行
-    details: '自动化流程并行运行，支持多设备同步操作'
+    details: '可拖拽的紧凑侧边栏，涵盖旋转、截图、应用、文件与终端'
   - icon: 🪟
     title: 多设备管理
     details: '可视化窗口编排，统一管理所有已连接设备'
   - icon: 📡
     title: 无线连接
-    details: '无线 ADB 连接，支持局域网自动发现与 Gnirehtet 反向供网'
+    details: '无线 ADB 连接，支持局域网自动发现与反向供网'
+  - icon: 🧰
+    title: 工具箱
+    details: '健康诊断、一键初始化与常用系统开关'
   - icon: ⚡️
     title: Scrcpy 内核
     details: '高性能、低延迟屏幕镜像与控制'

@@ -1,3 +1,3 @@
-- Email: **viarotel@qq.com**
-- WeChat: **viarotel**
-- QQ: **523469508**
+- GitHub: **https://github.com/jsrghjb/MagicBox**
+- Issues: **https://github.com/jsrghjb/MagicBox/issues**
+- Email: **huangjb@staryea.com**

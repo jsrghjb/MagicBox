@@ -3,12 +3,12 @@
 layout: home
 
 hero:
-  name: Escrcpy
-  text: Display and control your Android device graphically with scrcpy
-  tagline: Powered by electron.
+  name: MagicBox
+  text: Display and control your Android device with a local toolbox
+  tagline: 魔法百宝箱
   image:
     src: /images/logo@1024x1024.png
-    alt: Escrcpy
+    alt: MagicBox
   actions:
     - theme: brand
       text: Get Started 👉
@@ -17,34 +17,25 @@ hero:
       text: Help
       link: /help/escrcpy
     - theme: alt
-      text: Github
-      link: https://github.com/viarotel-org/escrcpy
+      text: GitHub
+      link: https://github.com/jsrghjb/MagicBox
 
 features:
   - icon: 🖥️
     title: Inset Mirror
-    details: 'Dedicated embedded window, auto-fits screen resolution and orientation, with integrated one-tap shortcuts'
-  - icon: ⌨️
-    title: Keyboard Mapping
-    details: 'Configure touch, joystick, swipe, scroll, and automation mappings directly on the embedded mirror'
-  - icon: 🔄
-    title: Multi-Device Control
-    details: 'Control multiple devices simultaneously in a single window, broadcast input, with batch screenshot and APK install support'
+    details: 'Dedicated embedded window, auto-fits screen resolution and orientation'
   - icon: 🎛️
     title: Integrated Control Bar
-    details: 'Compact, draggable sidebar with reorderable controls: rotation, screenshot, apps, files, terminal, AI assistant, and automation'
-  - icon: 🤖
-    title: Intelligent Control
-    details: 'Natural-language commands powered by AutoGLM for smart control of Android devices'
-  - icon: 🏃
-    title: Automated Execution
-    details: 'Automation workflows run in parallel, supporting synchronized operations across multiple devices'
+    details: 'Compact sidebar with rotation, screenshot, apps, files, and terminal'
   - icon: 🪟
     title: Multi-Device Management
-    details: 'Visual window orchestration for centralized management of all connected devices'
+    details: 'Visual window orchestration for all connected devices'
   - icon: 📡
     title: Wireless Connection
-    details: 'Wireless ADB connections with LAN auto-discovery and Gnirehtet reverse tethering support'
+    details: 'Wireless ADB with LAN auto-discovery and reverse tethering'
+  - icon: 🧰
+    title: Toolbox
+    details: 'Health checks, one-tap initialization, and common system switches'
   - icon: ⚡️
     title: Scrcpy Core
     details: 'High-performance, low-latency screen mirroring and control'

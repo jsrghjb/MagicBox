@@ -1,8 +1,6 @@
 {
   "about.description": "A local graphical toolbox: screen mirroring now, with router management and more to come",
   "about.docs.name": "Help Docs",
-  "about.donate.description": "If this project has helped you, you can buy me a coffee to keep me energized to improve it 😛",
-  "about.donate.title": "Donate",
   "about.name": "About",
   "about.update": "Check for Updates",
   "about.update-available.confirm": "Update",

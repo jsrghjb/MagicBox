@@ -1,14 +1,14 @@
-Privacy Policy for Escrcpy
+Privacy Policy for 魔法百宝箱 (MagicBox)
 
-Effective Date: 2024-07-29
+Effective Date: 2026-08-28
 
 1. Introduction
 
-Welcome to Escrcpy ("we", "our", or "us"). We are committed to protecting your privacy and personal information. This Privacy Policy explains how we collect, use, and safeguard your information when you use our Escrcpy software application ("the App").
+Welcome to 魔法百宝箱 ("we", "our", or "us"). This Privacy Policy explains how we collect, use, and safeguard your information when you use the MagicBox desktop application ("the App").
 
 2. Information We Don't Collect
 
-Escrcpy is designed with your privacy in mind. We do not collect, store, or transmit any personal information or data from your device or your usage of the App. The App functions locally on your device and does not require an internet connection for its core functionality.
+MagicBox is designed with your privacy in mind. We do not collect, store, or transmit personal information from your device or your usage of the App. The App functions locally on your computer and does not require an internet connection for its core functionality.
 
 3. Device Permissions
 
@@ -39,7 +39,7 @@ We may update our Privacy Policy from time to time. We will notify you of any ch
 
 If you have any questions about this Privacy Policy, please contact us at:
 
-Email: viarotel@qq.com
-GitHub: https://github.com/viarotel-org/escrcpy
+Email: huangjb@staryea.com
+GitHub: https://github.com/jsrghjb/MagicBox
 
 By using the App, you agree to the collection and use of information in accordance with this policy.

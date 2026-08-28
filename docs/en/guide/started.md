@@ -8,21 +8,15 @@ title: Quick Start
 
 ### Manual installation via released packages
 
-- [Github](https://github.com/viarotel-org/escrcpy/releases)
-- [Gitee(China mirror)](https://gitee.com/viarotel-org/escrcpy/releases)
-- [Gitcode(China mirror)](https://gitcode.com/viarotel-org/escrcpy/releases)
-
-### macOS can be installed via Homebrew
-
-See [homebrew-escrcpy](https://github.com/viarotel-org/homebrew-escrcpy)
+- [GitHub Releases](https://github.com/jsrghjb/MagicBox/releases)
 
 ## USB Connection
 
 > Note: If the phone prompts for debugging authorization, click allow
 
 1. [Enable developer mode](https://www.bing.com/search?q=Enable+developer+mode+android) and [USB debugging](https://www.bing.com/search?q=USB+debugging+android) on your Android phone
-2. Open Escrcpy and connect your Android phone to your computer
-3. The device list in Escrcpy should have detected your phone, click start mirroring
+2. Open MagicBox and connect your Android phone to your computer
+3. The device list in MagicBox should have detected your phone, click start mirroring
 4. Enjoy!
 
 ## WIFI Connection
@@ -41,15 +35,15 @@ See [homebrew-escrcpy](https://github.com/viarotel-org/homebrew-escrcpy)
 > Note: You need to enable wireless debugging and obtain your device's wireless address (usually the IP address assigned when connecting to WiFi) and port number (default is 5555) from the wireless debugging page
 
 1. Follow steps 1-2 from USB connection
-2. Enter the obtained device IP address and port number in Escrcpy, then click connect device
-3. At this point, Escrcpy device list should detect your phone, click start mirroring
+2. Enter the obtained device IP address and port number in MagicBox, then click connect device
+3. At this point, MagicBox device list should detect your phone, click start mirroring
 4. Start enjoying!
 
 ## macOS && Linux
 
 > Note: These platforms do not come with integrated [Scrcpy](/reference/scrcpy/), you need to install them manually
 
-**In Escrcpy@1.27.1+ scrcpy binary files are preliminarily integrated, eliminating the need for manual scrcpy installation.**
+**MagicBox already bundles scrcpy binaries, so manual scrcpy installation is usually not required.**
 
 1. Refer to the [installation document](/reference/scrcpy/linux.md) for Linux
 2. Refer to the [installation document](/reference/scrcpy/macos.md) for macOS

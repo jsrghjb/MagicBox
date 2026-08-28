@@ -1,6 +1,6 @@
 # AGENTS
 
-Escrcpy is a pnpm + Turborepo monorepo for an Electron GUI around Android mirroring/control with scrcpy. Keep this file focused on agent-critical facts; link existing docs instead of copying them. For the broader overview, start with [develop.md](../develop.md).
+Escrcpy is a pnpm + Turborepo monorepo for an Electron GUI around Android mirroring/control with scrcpy (product name: 魔法百宝箱 / MagicBox). Keep this file focused on agent-critical facts; link existing docs instead of copying them. For the broader overview, start with [develop.md](../develop.md).
 
 ## Architecture
 

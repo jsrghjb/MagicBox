@@ -1,8 +1,8 @@
 ---
-title: Escrcpy
+title: MagicBox
 ---
 
-# Escrcpy
+# MagicBox
 
 ### Computer cannot detect device after connecting
 
@@ -13,9 +13,9 @@ title: Escrcpy
 
 > In Scrcpy@2.4+ and above, the solution is as follows:
 
-1. Escrcpy Settings: Go to `Preferences` → `Input Control` → `Keyboard Mode` and select `uhid` mode.
+1. MagicBox Settings: Go to `Preferences` → `Input Control` → `Keyboard Mode` and select `uhid` mode.
 2. Device Input Method Preparation: Install an input method that supports physical keyboards (WeChat Input Method is recommended) and complete the setup.
-3. Start Mirroring: Click `Start Mirroring` in Escrcpy. Verification: The device’s `Settings` → `System` → `Language & Input` should display options for `Physical Keyboard` and `On-screen Keyboard`.
+3. Start Mirroring: Click `Start Mirroring` in MagicBox. Verification: The device’s `Settings` → `System` → `Language & Input` should display options for `Physical Keyboard` and `On-screen Keyboard`.
 4. Device Input Settings: Enable WeChat Input Method in the `On-screen Keyboard` settings. Configure the keyboard layout in the `Physical Keyboard` settings to match the computer keyboard (only needs to be done once).
 5. Computer Input Preparation: Set the input mode to English (important).
 6. Switch Input Language: Use `Ctrl` + `Shift` to switch between English and Chinese.
@@ -29,11 +29,11 @@ The first wireless connection may require pairing. Alternatively, insert USB to 
 
 ### Clicking wireless mode after connecting via data cable has no response
 
-Please click again, or click refresh devices. Generally it will not exceed two clicks. If still not working, please provide device model and Android version to [Issues](https://github.com/viarotel-org/escrcpy/issues)
+Please click again, or click refresh devices. Generally it will not exceed two clicks. If still not working, please provide device model and Android version to [Issues](https://github.com/jsrghjb/MagicBox/issues)
 
 ### Why is the device interaction control bar not designed as an automatically sticking floating menu?
 
-It is important to note that, in principle, Escrcpy is just a GUI version based on Scrcpy, although it does extend some functionality. However, these extensions do not affect the core of Scrcpy. To implement this particular feature, I would have to modify the underlying Scrcpy code, which would make it more difficult for Escrcpy to stay in sync with Scrcpy's updates, and the drawbacks would outweigh the benefits.
+It is important to note that MagicBox is a GUI around Scrcpy. Implementing this particular feature would require modifying Scrcpy itself, which would make it harder to stay in sync with Scrcpy updates.
 
 Therefore, after careful consideration, we have decided to adopt the existing solution and look forward to Scrcpy adding native support for an interactive control bar in the future.
 
@@ -60,13 +60,13 @@ Please refer to the detailed instructions under [Reasons why mouse and keyboard 
 
 1. In the menu, select `Preferences` and then click the reset configuration button in the top right corner of `Global Mode`.
 2. Go to the `Device List` page and try enabling mirroring again.
-3. Make sure you have downloaded and installed the latest version of `Escrcpy`.
+3. Make sure you have downloaded and installed the latest version of `MagicBox`.
 4. Press `Ctrl` + `Shift` + `I` to open the developer tools and check for any error messages.
-5. If there are errors, take a screenshot and submit your issue with the screenshot on the [Feedback Issues](https://github.com/viarotel-org/escrcpy/issues) page.
+5. If there are errors, take a screenshot and submit your issue with the screenshot on the [Feedback Issues](https://github.com/jsrghjb/MagicBox/issues) page.
 
 ### macOS window minimized to system tray icon not found
 
-> This is generally caused by too many icons in the system tray overflowing and hiding the Escrcpy icon. Try using the following tools:
+> This is generally caused by too many icons in the system tray overflowing and hiding the MagicBox icon. Try using the following tools:
 
 - [iBar](https://www.better365.cn/ibar.html)
 - [Bartender](https://www.macbartender.com/)
@@ -76,7 +76,7 @@ Please refer to the detailed instructions under [Reasons why mouse and keyboard 
 > This is usually due to the software package not being signed. You can try the following solutions:
 
 1. Open Terminal and execute `sudo spctl --master-disable` to allow software from any source.
-2. Open Terminal and execute `sudo xattr -r -d com.apple.quarantine /Applications/Escrcpy.app` to attempt fixing the damaged software package prompt.
+2. Open Terminal and execute `sudo xattr -r -d com.apple.quarantine /Applications/魔法百宝箱.app` to attempt fixing the damaged software package prompt.
 
 ### Unable to locate the input point DiscardvirtualMemory on the dynamic link library Kernel32.dll.
 
@@ -103,7 +103,7 @@ This might be due to Chinese or special characters in the installation path. Ple
 > New restrictions have been implemented for AppImage applications in some popular distributions, such as Ubuntu 24.04, limiting the use of sandboxes. A temporary workaround is as follows:
 
 ```shell
-sudo chmod 4755 /opt/Escrcpy/chrome-sandbox
+sudo chmod 4755 /opt/魔法百宝箱/chrome-sandbox
 ```
 
 ### Black edges appear after resizing the casting window
@@ -114,6 +114,6 @@ If black edges appear after resizing the casting window, simply **double-click t
 
 Please try the following solutions:
 
-- Check whether Windows Firewall is enabled. If so, add the binary files required by Escrcpy (such as `adb`, `scrcpy`, `gnirehtet`, etc.) to the firewall allowlist, or temporarily disable the firewall and try again.
+- Check whether Windows Firewall is enabled. If so, add the binary files required by MagicBox (such as `adb`, `scrcpy`, `gnirehtet`, etc.) to the firewall allowlist, or temporarily disable the firewall and try again.
 - Reset the configuration profile in Preferences to rule out issues caused by corrupted settings.
 - Make sure the installation path does not contain Chinese characters, spaces, or special characters. It is recommended to use a path with English characters only.

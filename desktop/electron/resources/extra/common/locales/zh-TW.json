@@ -1,8 +1,6 @@
 {
   "about.description": "📱 使用圖形化的 Scrcpy 顯示和控制您的 Android 裝置，使用 Electron 開發",
   "about.docs.name": "幫助文件",
-  "about.donate.description": "如果覺得這個專案有幫到您的話，可以考慮請我喝杯咖啡，讓我更有精神持續改進此專案 😛",
-  "about.donate.title": "捐贈",
   "about.name": "關於",
   "about.update": "檢查並更新",
   "about.update-available.confirm": "更新",

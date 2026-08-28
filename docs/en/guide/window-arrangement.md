@@ -4,7 +4,7 @@ title: Window Arrangement
 
 # Device Window Arrangement Feature Guide
 
-Device Window Arrangement is one of Escrcpy's advanced features, designed specifically for multi-device management and screen space optimization. Through a visual drag-and-drop interface, you can precisely control the position, size, and layout of each device window, enabling efficient multi-device collaborative operations.
+Device Window Arrangement is one of MagicBox's advanced features, designed specifically for multi-device management and screen space optimization. Through a visual drag-and-drop interface, you can precisely control the position, size, and layout of each device window, enabling efficient multi-device collaborative operations.
 
 ## Feature Overview
 
