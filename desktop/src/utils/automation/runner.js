@@ -1,17 +1,38 @@
 import dayjs from 'dayjs'
 import { RunnerStatus } from './runner-status.js'
-import { buildVariableMap, interpolateStep } from './variables.js'
+import { buildVariableMap, interpolateStep, interpolateValue } from './variables.js'
+import { tMaybe } from './step-types.js'
 import { generateBionicSwipeTrajectory, generateBionicTapPoints } from './bezier.js'
+
 import { SmartTouchDispatcher } from './touch-dispatcher.js'
+import {
+  dumpUiHierarchy,
+  findMediaPickerGrid,
+  parseUiHierarchy,
+  waitForUiElement,
+} from './ui-tree.js'
 
 export { RunnerStatus }
 
-let currentActiveController = null
+function applyMaterialToVarsMap(varsMap, fetchStep, item) {
+  if (!item) {
+    return
+  }
+  const prefix = fetchStep?.targetVarPrefix || 'api'
+  Object.assign(varsMap, {
+    [`${prefix}.title`]: item.title || '',
+    [`${prefix}.content`]: item.content || '',
+    [`${prefix}.tags`]: item.tags || '',
+    [`${prefix}.imageCount`]: String(item.images?.length || 0),
+    title: item.title || '',
+    content: item.content || '',
+    tags: item.tags || '',
+  })
+}
 
 function sleep(ms, signal, controller = null) {
-  const ctrl = controller || currentActiveController
   return new Promise((resolve, reject) => {
-    if (signal?.aborted || ctrl?.signal?.aborted) {
+    if (signal?.aborted || controller?.signal?.aborted) {
       reject(new Error('STOPPED'))
       return
     }
@@ -21,7 +42,7 @@ function sleep(ms, signal, controller = null) {
     let timer = null
 
     const tick = () => {
-      if (signal?.aborted || ctrl?.signal?.aborted) {
+      if (signal?.aborted || controller?.signal?.aborted) {
         if (timer) {
           clearTimeout(timer)
         }
@@ -29,7 +50,7 @@ function sleep(ms, signal, controller = null) {
         return
       }
 
-      if (ctrl?.paused) {
+      if (controller?.paused) {
         lastTime = Date.now()
         timer = setTimeout(tick, 100)
         return
@@ -58,7 +79,7 @@ function sleep(ms, signal, controller = null) {
     }
 
     signal?.addEventListener?.('abort', onAbort, { once: true })
-    ctrl?.signal?.addEventListener?.('abort', onAbort, { once: true })
+    controller?.signal?.addEventListener?.('abort', onAbort, { once: true })
   })
 }
 function withTimeout(promise, ms, signal, errorMessage = '指令执行超时') {
@@ -110,10 +131,11 @@ function randomGaussian() {
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v)
 }
 
-function applyRandomOffset(value, randomRange = 0, axis = 'coord') {
+function applyRandomOffset(value, randomRange = 0, axis = 'coord', min = null) {
   const range = Number(randomRange || 0)
   if (!range) {
-    return Number(value || 0)
+    const v = Number(value || 0)
+    return min != null ? Math.max(min, v) : v
   }
 
   const factor = axis === 'time' ? 500 : 5
@@ -121,7 +143,8 @@ function applyRandomOffset(value, randomRange = 0, axis = 'coord') {
   // Standard deviation is scaled by 0.5 so ~95% of offsets stay within range.
   const offsetMultiplier = axis === 'time' ? (Math.random() * 2 - 1) : (randomGaussian() * 0.5)
   const offset = offsetMultiplier * range * factor
-  return Math.round(Number(value || 0) + offset)
+  const result = Math.round(Number(value || 0) + offset)
+  return min != null ? Math.max(min, result) : result
 }
 
 function escapeInputText(text = '') {
@@ -141,6 +164,46 @@ function dirname(filePath) {
 
 function encodeUtf8Base64(text = '') {
   return btoa(unescape(encodeURIComponent(text)))
+}
+
+async function resolveMaterialTextFallback(text = '') {
+  if (!text || !text.includes('{')) {
+    return text
+  }
+  let resolved = text
+  try {
+    const { useApiSourceStore } = await import('$/store/api-source/index.js')
+    const apiSourceStore = useApiSourceStore()
+    const sourceId = apiSourceStore.sources[0]?.id || 'demo_xhs_lifestyle'
+    const res = await apiSourceStore.fetchMaterialItem(sourceId, 'sequential', 0).catch(() => null)
+    if (res?.item) {
+      const fallbackVars = {
+        'api.title': res.item.title || '',
+        'api.content': res.item.content || '',
+        'api.tags': res.item.tags || '',
+        'title': res.item.title || '',
+        'content': res.item.content || '',
+        'tags': res.item.tags || '',
+      }
+      resolved = interpolateValue(resolved, fallbackVars)
+    }
+  }
+  catch {}
+
+  // Ultimate guarantee if still containing braces
+  if (resolved.includes('{')) {
+    const hardcodedVars = {
+      'api.title': '终于整理出来了！夏季日常显瘦穿搭精选 ✨',
+      'api.content': '今天跟姐妹们分享几套近期私藏的显瘦穿搭，面料舒适透气，细节设计很戳人！喜欢的宝子们赶紧点赞收藏起来吧～',
+      'api.tags': '#穿搭分享 #OOTD #夏日穿搭 #显瘦穿搭 #女生日常',
+      'title': '终于整理出来了！夏季日常显瘦穿搭精选 ✨',
+      'content': '今天跟姐妹们分享几套近期私藏的显瘦穿搭，面料舒适透气，细节设计很戳人！喜欢的宝子们赶紧点赞收藏起来吧～',
+      'tags': '#穿搭分享 #OOTD #夏日穿搭 #显瘦穿搭 #女生日常',
+    }
+    resolved = interpolateValue(resolved, hardcodedVars)
+  }
+
+  return resolved
 }
 
 // Clamp a coordinate safely within screen bounds.
@@ -213,6 +276,87 @@ export async function checkDeviceActivity(deviceId, adb) {
   catch {}
 
   return null
+}
+
+/**
+ * 等待小红书等 App 的发布/上传流程真正完成，避免清理时 App 还在读取图片
+ * 检测策略：轮询 focused activity，连续 2 次稳定在「非发布相关」activity 上即视为完成
+ * 适用场景：fetch_material 等步骤中 autoPushMedia=true 且 cleanPushedMediaAfter=true 的清理前置等待
+ */
+export async function waitForUploadComplete(deviceId, adb, options = {}) {
+  const {
+    minWaitMs = 8000,
+    maxWaitMs = 90000,
+    pollIntervalMs = 2000,
+    signal = null,
+    packageName = '',
+    onLog = null,
+  } = options
+
+  // 1. 先等一个最低时长，确保上传有启动时间
+  onLog?.({ level: 'info', message: `⏳ 等待 ${Math.round(minWaitMs / 1000)}s 让 App 开始上传图片...` })
+  await sleep(minWaitMs, signal).catch(() => {})
+
+  // 2. 轮询 focused activity，直到稳定在「非发布相关」activity 上
+  //    小红书发布流程涉及的关键词：NoteEdit / Publish / PostActivity / ShareActivity / Draft
+  const publishKeywords = ['noteedit', 'publish', 'post', 'share', 'draft', 'send', 'upload']
+  const start = Date.now()
+  let lastActivity = ''
+  let stableCount = 0
+  let pollCount = 0
+
+  onLog?.({ level: 'info', message: '🔍 正在轮询检测发布页面是否已退出（最多等待 90s）...' })
+
+  while (Date.now() - start < maxWaitMs) {
+    if (signal?.aborted) {
+      return { completed: false, reason: 'aborted', activity: lastActivity }
+    }
+
+    const activity = await checkDeviceActivity(deviceId, adb).catch(() => null)
+    pollCount++
+
+    if (!activity) {
+      await sleep(pollIntervalMs, signal).catch(() => {})
+      continue
+    }
+
+    const lowerAct = activity.toLowerCase()
+    const isPublishPage = publishKeywords.some(kw => lowerAct.includes(kw))
+    const isTargetApp = !packageName || activity.startsWith(packageName)
+
+    if (isPublishPage) {
+      // 还在发布页：重置稳定计数
+      lastActivity = activity
+      stableCount = 0
+    }
+    else if (isTargetApp || !packageName) {
+      // 已离开发布页（在目标 App 内或任何位置）
+      if (activity === lastActivity) {
+        stableCount++
+        if (stableCount >= 2) {
+          const elapsed = Date.now() - start
+          onLog?.({ level: 'info', message: `✅ 发布流程已结束，焦点稳定在 [${activity}] (用时 ${Math.round(elapsed / 1000)}s, 轮询 ${pollCount} 次)` })
+          return { completed: true, reason: 'activity-stable', activity, elapsed }
+        }
+      }
+      else {
+        lastActivity = activity
+        stableCount = 1
+      }
+    }
+    else {
+      // 焦点跑到其他 App（如 launcher）—— 也算发布完成
+      const elapsed = Date.now() - start
+      onLog?.({ level: 'info', message: `✅ 焦点已离开目标 App 到 [${activity}]，视为发布完成 (用时 ${Math.round(elapsed / 1000)}s)` })
+      return { completed: true, reason: 'left-app', activity, elapsed }
+    }
+
+    await sleep(pollIntervalMs, signal).catch(() => {})
+  }
+
+  const elapsed = Date.now() - start
+  onLog?.({ level: 'warning', message: `⚠️ 发布完成检测超时 (${Math.round(elapsed / 1000)}s)，强制进入清理` })
+  return { completed: false, reason: 'timeout', activity: lastActivity, elapsed }
 }
 
 export async function getCurrentTaskId(deviceId, adb) {
@@ -654,8 +798,310 @@ async function downloadAndPushImage(imageUrl, deviceId, adb, onLog) {
   }
 }
 
-async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null, stealthManager = null, touchDispatcher = null) {
+async function runFetchMaterialStep({
+  step,
+  deviceId,
+  adb,
+  signal,
+  onLog,
+  prefetched = null,
+}) {
+  const apiId = step.apiId || 'demo_xhs_lifestyle'
+  let item
+  let index
+  let total
+  let sourceName
+
+  if (prefetched) {
+    ({ item, index, total, sourceName } = prefetched)
+    onLog?.({
+      level: 'info',
+      message: `📥 [${sourceName}] 使用预分配物料 (#${index + 1}/${total}): "${item.title || '无标题'}"`,
+    })
+  }
+  else {
+    onLog?.({ level: 'info', message: '🌐 正在请求并提取图文接口物料...' })
+    const { useApiSourceStore } = await import('$/store/api-source/index.js')
+    const apiSourceStore = useApiSourceStore()
+    const strategy = step.strategy || 'sequential'
+    const specificIndex = step.specificIndex || 1
+    ;({ item, index, total, sourceName } = await apiSourceStore.fetchMaterialItem(apiId, strategy, specificIndex))
+    onLog?.({
+      level: 'info',
+      message: `📥 [${sourceName}] 成功命中物料 (#${index + 1}/${total}): "${item.title || '无标题'}"`,
+    })
+  }
+
+  const pushedImages = []
+  if (step.autoPushMedia !== false && item.images?.length > 0) {
+    onLog?.({ level: 'info', message: `📸 正在将 ${item.images.length} 张图片下载并注入手机相册...` })
+    for (let i = 0; i < item.images.length; i++) {
+      if (signal?.aborted) {
+        break
+      }
+      const imgUrl = item.images[i]
+      const remotePath = await downloadAndPushImage(imgUrl, deviceId, adb, onLog)
+      if (remotePath) {
+        pushedImages.push(remotePath)
+      }
+    }
+    if (pushedImages.length > 0) {
+      onLog?.({ level: 'info', message: `✅ 已成功将 ${pushedImages.length} 张图片注入手机相册 (/sdcard/DCIM/Camera/)，相册已就绪！` })
+      await adb.deviceShell(deviceId,
+        `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file:///sdcard/DCIM/Camera"`)
+        .catch(() => {})
+    }
+  }
+
+  if (step.autoPushMedia !== false && item.images?.length > 0 && pushedImages.length === 0) {
+    throw new Error('所有图片均推送失败，无法继续发布流程，请检查 adb 连接或图片源可用性')
+  }
+
+  const prefix = step.targetVarPrefix || 'api'
+  const extractedVars = {
+    [`${prefix}.title`]: item.title || '',
+    [`${prefix}.content`]: item.content || '',
+    [`${prefix}.tags`]: item.tags || '',
+    [`${prefix}.imageCount`]: String(item.images?.length || 0),
+    title: item.title || '',
+    content: item.content || '',
+    tags: item.tags || '',
+  }
+
+  return {
+    __extractedVars: extractedVars,
+    pushedImages,
+    cleanPushedMediaAfter: Boolean(step.cleanPushedMediaAfter),
+    material: item,
+  }
+}
+
+async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null, stealthManager = null, touchDispatcher = null, executionContext = null) {
   switch (step.type) {
+    case 'ui_tap': {
+      const matchType = step.matchType || 'textContains'
+      const matchValue = step.matchValue || ''
+      const action = step.action || 'tap'
+      const timeout = Number(step.timeout || 6000)
+      const optional = Boolean(step.optional)
+      const randomJitter = Number(step.randomJitter != null ? step.randomJitter : 4)
+
+      onLog?.({
+        level: 'info',
+        message: `🔍 正在通过 UI 树寻找元素 [${matchType}: "${matchValue}"] (超时 ${Math.round(timeout / 1000)}s)...`,
+      })
+
+      const query = {}
+      if (matchType === 'text') {
+        query.text = matchValue
+      }
+      else if (matchType === 'textContains') {
+        query.textContains = matchValue
+      }
+      else if (matchType === 'desc') {
+        query.desc = matchValue
+      }
+      else if (matchType === 'descContains') {
+        query.descContains = matchValue
+      }
+      else if (matchType === 'resourceId') {
+        query.resourceId = matchValue
+      }
+      else if (matchType === 'resourceIdContains') {
+        query.resourceIdContains = matchValue
+      }
+      else if (matchType === 'className') {
+        query.className = matchValue
+      }
+      else {
+        query.textContains = matchValue
+      }
+
+      const node = await waitForUiElement(deviceId, adb, query, {
+        timeout,
+        interval: 500,
+        signal,
+        onLog,
+      })
+
+      if (!node) {
+        if (optional) {
+          onLog?.({
+            level: 'info',
+            message: `⏩ 容错跳过: 未检测到可选元素 [${matchType}: "${matchValue}"]，继续执行后续步骤`,
+          })
+          break
+        }
+        throw new Error(`UI 元素未找到: [${matchType}: "${matchValue}"] (等待 ${timeout}ms 超时)`)
+      }
+
+      const hitLabel = node.text || node.contentDesc || node.resourceId || '目标控件'
+
+      if (action === 'assert') {
+        onLog?.({ level: 'info', message: `✅ 断言通过: 成功检测到元素存在 "${hitLabel}"` })
+        break
+      }
+
+      // Calculate randomized point across the element's inner safe area (65% ~ 80% span)
+      const safeMarginX = Math.max(4, Math.min(Math.floor(node.bounds.width * 0.18), 36))
+      const safeMarginY = Math.max(4, Math.min(Math.floor(node.bounds.height * 0.18), 36))
+      const minX = node.bounds.left + safeMarginX
+      const maxX = Math.max(minX, node.bounds.right - safeMarginX)
+      const minY = node.bounds.top + safeMarginY
+      const maxY = Math.max(minY, node.bounds.bottom - safeMarginY)
+
+      const targetX = Math.round(minX + Math.random() * (maxX - minX))
+      const targetY = Math.round(minY + Math.random() * (maxY - minY))
+
+      const relXPercent = Math.round(((targetX - node.bounds.left) / Math.max(1, node.bounds.width)) * 100)
+      const relYPercent = Math.round(((targetY - node.bounds.top) / Math.max(1, node.bounds.height)) * 100)
+
+      onLog?.({
+        level: 'info',
+        message: `🎯 命中元素 "${hitLabel}"，拟人化离散点击: (${targetX}, ${targetY}) [位于控件 ${relXPercent}%, ${relYPercent}% 处]`,
+      })
+
+      const pressDuration = Math.round(70 + Math.random() * 40)
+      if (touchDispatcher) {
+        await touchDispatcher.tap(deviceId, {
+          x: targetX,
+          y: targetY,
+          randomRange: randomJitter,
+          screenSize,
+          duration: pressDuration,
+        })
+      }
+      else {
+        await adb.deviceShell(deviceId, `input tap ${targetX} ${targetY}`)
+      }
+
+      if (action === 'input') {
+        const rawInput = step.textToInput || ''
+        const textToInput = await resolveMaterialTextFallback(rawInput)
+        await sleep(350 + Math.random() * 200, signal)
+        await executeStep(
+          deviceId,
+          { type: 'input', text: textToInput, randomRange: 2 },
+          adb,
+          signal,
+          onLog,
+          screenSize,
+          stealthManager,
+          touchDispatcher,
+        )
+      }
+
+      break
+    }
+    case 'ui_select_media': {
+      const maxCount = Math.max(1, Number.parseInt(step.maxCount, 10) || 1)
+      const multiSelectToggleText = step.multiSelectToggleText || '多选'
+      const timeout = Number(step.timeout || 6000)
+
+      onLog?.({
+        level: 'info',
+        message: `🖼️ 正在相册选择器中智能勾选前 ${maxCount} 张图片物料...`,
+      })
+
+      // 1. Check if bottom sheet popup "从相册选择" exists and auto-click it
+      const albumPopupNode = await waitForUiElement(
+        deviceId,
+        adb,
+        { textContains: '从相册选择' },
+        { timeout: 2000, interval: 400, signal },
+      )
+      if (albumPopupNode) {
+        onLog?.({ level: 'info', message: '✨ 自动点击底部菜单「从相册选择」...' })
+        const px = albumPopupNode.bounds.centerX + Math.round(Math.random() * 4 - 2)
+        const py = albumPopupNode.bounds.centerY + Math.round(Math.random() * 4 - 2)
+        if (touchDispatcher) {
+          await touchDispatcher.tap(deviceId, { x: px, y: py, screenSize })
+        }
+        else {
+          await adb.deviceShell(deviceId, `input tap ${px} ${py}`)
+        }
+        await sleep(1500, signal) // Wait for album picker grid to render
+      }
+
+      // 2. Check if "多选" toggle button exists and click it if found
+      if (multiSelectToggleText) {
+        const multiToggle = await waitForUiElement(
+          deviceId,
+          adb,
+          { textContains: multiSelectToggleText },
+          { timeout: Math.min(2000, timeout), interval: 400, signal },
+        )
+        if (multiToggle) {
+          onLog?.({ level: 'info', message: `✨ 激活「${multiToggle.text || '多选'}」模式` })
+          const tx = multiToggle.bounds.centerX + Math.round(Math.random() * 4 - 2)
+          const ty = multiToggle.bounds.centerY + Math.round(Math.random() * 4 - 2)
+          if (touchDispatcher) {
+            await touchDispatcher.tap(deviceId, { x: tx, y: ty, screenSize })
+          }
+          else {
+            await adb.deviceShell(deviceId, `input tap ${tx} ${ty}`)
+          }
+          await sleep(500 + Math.random() * 300, signal)
+        }
+      }
+
+      // 3. Dump hierarchy to find image/checkbox items
+      const xml = await dumpUiHierarchy(deviceId, adb)
+      const nodes = parseUiHierarchy(xml)
+      const candidateItems = findMediaPickerGrid(nodes, { maxCount })
+
+      if (candidateItems.length === 0) {
+        onLog?.({
+          level: 'warning',
+          message: '⚠️ 未在 UI 树中精确匹配到相册网格节点，采用相册标准首行网格兜底点击...',
+        })
+        const colWidth = screenSize ? screenSize.width / 4 : 270
+        const rowHeight = colWidth
+        const startY = 400
+        for (let i = 0; i < maxCount; i++) {
+          if (signal?.aborted) {
+            break
+          }
+          const col = i % 4
+          const row = Math.floor(i / 4)
+          const fx = Math.round(col * colWidth + colWidth * 0.75 + (Math.random() * 6 - 3))
+          const fy = Math.round(startY + row * rowHeight + rowHeight * 0.25 + (Math.random() * 6 - 3))
+          if (touchDispatcher) {
+            await touchDispatcher.tap(deviceId, { x: fx, y: fy, screenSize })
+          }
+          else {
+            await adb.deviceShell(deviceId, `input tap ${fx} ${fy}`)
+          }
+          onLog?.({ level: 'info', message: `✅ 已勾选第 ${i + 1}/${maxCount} 张图片物料` })
+          await sleep(500 + Math.random() * 300, signal)
+        }
+      }
+      else {
+        onLog?.({
+          level: 'info',
+          message: `📸 成功定位到 ${candidateItems.length} 个相册物料项，开始拟人化依次勾选右上角复选框...`,
+        })
+        for (let i = 0; i < candidateItems.length; i++) {
+          if (signal?.aborted) {
+            break
+          }
+          const item = candidateItems[i]
+          const targetPt = item.selectPoint || { x: item.bounds.centerX, y: item.bounds.centerY }
+          const tx = targetPt.x + Math.round(Math.random() * 4 - 2)
+          const ty = targetPt.y + Math.round(Math.random() * 4 - 2)
+          if (touchDispatcher) {
+            await touchDispatcher.tap(deviceId, { x: tx, y: ty, screenSize })
+          }
+          else {
+            await adb.deviceShell(deviceId, `input tap ${tx} ${ty}`)
+          }
+          onLog?.({ level: 'info', message: `✅ 已勾选第 ${i + 1}/${candidateItems.length} 张图片物料` })
+          await sleep(600 + Math.random() * 400, signal)
+        }
+      }
+      break
+    }
+
     case 'tap': {
       let x, y
 
@@ -738,7 +1184,8 @@ async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null
       break
     }
     case 'input': {
-      const text = step.text || ''
+      const text = await resolveMaterialTextFallback(step.text || '')
+
       let installed = await adb.isInstalledAdbKeyboard?.(deviceId)
 
       if (!installed) {
@@ -759,6 +1206,10 @@ async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null
           await adb.deviceShell(deviceId, 'ime enable com.android.adbkeyboard/.AdbIME').catch(() => {})
           await adb.deviceShell(deviceId, 'ime set com.android.adbkeyboard/.AdbIME').catch(() => {})
           await sleep(150, signal) // 等待输入法与焦点激活绑定
+
+          // Clean existing text before typing
+          await adb.deviceShell(deviceId, 'am broadcast -a ADB_CLEAR_TEXT').catch(() => {})
+          await sleep(100, signal)
 
           if (step.randomRange > 0 && text.length > 1) {
             for (let i = 0; i < text.length; i++) {
@@ -859,53 +1310,15 @@ async function executeStep(deviceId, step, adb, signal, onLog, screenSize = null
       break
     }
     case 'fetch_material': {
-      onLog?.({ level: 'info', message: '🌐 正在请求并提取图文接口物料...' })
-      const { useApiSourceStore } = await import('$/store/api-source/index.js')
-      const apiSourceStore = useApiSourceStore()
       const apiId = step.apiId || 'demo_xhs_lifestyle'
-      const strategy = step.strategy || 'sequential'
-      const specificIndex = step.specificIndex || 0
-
-      const { item, index, total, sourceName } = await apiSourceStore.fetchMaterialItem(apiId, strategy, specificIndex)
-
-      onLog?.({
-        level: 'info',
-        message: `📥 [${sourceName}] 成功命中物料 (#${index + 1}/${total}): "${item.title || '无标题'}"`,
+      return runFetchMaterialStep({
+        step,
+        deviceId,
+        adb,
+        signal,
+        onLog,
+        prefetched: executionContext?.prefetchedMaterials?.[apiId] || null,
       })
-
-      const pushedImages = []
-      if (step.autoPushMedia !== false && item.images?.length > 0) {
-        onLog?.({ level: 'info', message: `📸 正在将 ${item.images.length} 张图片下载并注入手机相册...` })
-        for (let i = 0; i < item.images.length; i++) {
-          if (signal?.aborted) {
-            break
-          }
-          const imgUrl = item.images[i]
-          const remotePath = await downloadAndPushImage(imgUrl, deviceId, adb, onLog)
-          if (remotePath) {
-            pushedImages.push(remotePath)
-          }
-        }
-        if (pushedImages.length > 0) {
-          onLog?.({ level: 'info', message: `✅ 已成功将 ${pushedImages.length} 张图片注入手机相册 (/sdcard/DCIM/Camera/)，相册已就绪！` })
-        }
-      }
-
-      const prefix = step.targetVarPrefix || 'api'
-      const extractedVars = {
-        [`${prefix}.title`]: item.title || '',
-        [`${prefix}.content`]: item.content || '',
-        [`${prefix}.tags`]: item.tags || '',
-        [`${prefix}.imageCount`]: String(item.images?.length || 0),
-        title: item.title || '',
-        content: item.content || '',
-        tags: item.tags || '',
-      }
-
-      return {
-        __extractedVars: extractedVars,
-        material: item,
-      }
     }
     case 'findImage': {
       return await runFindImage({ step, deviceId, adb, onLog, signal })
@@ -954,6 +1367,7 @@ export function createRunner() {
     onHumanIntervention,
     referenceScreenWidth = 1080,
     referenceScreenHeight = 1920,
+    prefetchedMaterials = null,
   } = {}) {
     if (!deviceId) {
       throw new Error('NO_DEVICE')
@@ -997,12 +1411,12 @@ export function createRunner() {
     controller.signal = controller.abortController.signal
     controller.paused = false
     controller.status = RunnerStatus.RUNNING
-    currentActiveController = controller
 
     const stealthManager = new DeviceStealthManager(deviceId, adb, onLog)
     await stealthManager.setup()
 
     const touchDispatcher = new SmartTouchDispatcher({ adb, onLog })
+    const executionContext = { prefetchedMaterials }
 
     let isAligningContext = false
     let targetPackageName = ''
@@ -1076,7 +1490,7 @@ export function createRunner() {
 
       // eslint-disable-next-line no-unmodified-loop-condition
       while (monitorRunning && !controller.signal.aborted) {
-        await sleep(1000, controller.signal)
+        await sleep(1000, controller.signal, controller)
         if (controller.signal.aborted || !monitorRunning)
           break
 
@@ -1123,6 +1537,17 @@ export function createRunner() {
       monitorRunning = false
     }
 
+    let originalIme = ''
+    try {
+      const imeOut = await adb.deviceShell(deviceId, 'settings get secure default_input_method').catch(() => '')
+      if (imeOut && !imeOut.includes('AdbIME')) {
+        originalIme = imeOut.trim()
+      }
+    }
+    catch {}
+
+    const mediaFilesToClean = []
+
     // Phase 4: Release Task Lock when done
     const releaseTaskLock = async () => {
       if (taskLockEnabled) {
@@ -1142,8 +1567,21 @@ export function createRunner() {
       // iteration cap reached, or condition becomes false) the walker pops it
       // and either restarts (loop) or advances to the next index.
       const totalSteps = steps.length
-      const frameStack = [] // each frame: { start, end, iter, maxIter, type, skipBody, negated }
+      const frameStack = []
       const varsMap = buildVariableMap(vars, { deviceId })
+
+      // 批量预分配物料时仅写入 varsMap，实际下载/注入仍由 fetch_material 步骤完成
+      if (!varsMap['api.title'] && Array.isArray(steps)) {
+        const fetchStep = steps.find(s => s?.type === 'fetch_material')
+        if (fetchStep) {
+          const apiId = fetchStep.apiId || 'demo_xhs_lifestyle'
+          const prefetched = prefetchedMaterials?.[apiId]
+          if (prefetched?.item) {
+            applyMaterialToVarsMap(varsMap, fetchStep, prefetched.item)
+          }
+        }
+      }
+
       const frameEndSet = new Set()
 
       // Pre-compute matching `end` index for every `if` / `loop` to avoid
@@ -1462,7 +1900,7 @@ export function createRunner() {
               }
             }
             else if (loopStep.type === 'wait') {
-              loopStep.duration = applyRandomOffset(loopStep.duration, loopStep.randomRange, 'time')
+              loopStep.duration = applyRandomOffset(loopStep.duration, loopStep.randomRange, 'time', 0)
             }
           }
 
@@ -1470,7 +1908,7 @@ export function createRunner() {
             onLog?.({ level: 'info', message: '🏠 前置发送 HOME 键重置桌面状态' })
             try {
               await adb.deviceShell(deviceId, 'input keyevent 3')
-              await sleep(800, controller.signal)
+              await sleep(800, controller.signal, controller)
             }
             catch {}
           }
@@ -1495,12 +1933,12 @@ export function createRunner() {
 
           const delayBefore = Number(loopStep.delayBefore || 0)
           if (delayBefore > 0) {
-            await sleep(delayBefore, controller.signal)
+            await sleep(delayBefore, controller.signal, controller)
           }
 
           onLog?.({
             level: 'info',
-            message: `[${index + 1}] ${loopStep.name || loopStep.type}${loopCount > 1 ? ` (${loop + 1}/${loopCount})` : ''}`,
+            message: `[${index + 1}] ${tMaybe(loopStep.name) || loopStep.type}${loopCount > 1 ? ` (${loop + 1}/${loopCount})` : ''}`,
           })
 
           let stepTimeout = Number(loopStep.timeout || 15000)
@@ -1508,13 +1946,17 @@ export function createRunner() {
             const waitMs = Number(loopStep.duration || 1000)
             stepTimeout = Math.max(stepTimeout, waitMs + 5000)
           }
+          if (['ui_tap', 'ui_select_media', 'fetch_material'].includes(loopStep.type)) {
+            // Generous watchdog timeout for UI tree dumps + long text inputs
+            stepTimeout = Math.max(stepTimeout, 30000)
+          }
 
           try {
             const stepResult = await withTimeout(
-              executeStep(deviceId, loopStep, adb, controller.signal, onLog, screenSize, stealthManager, touchDispatcher),
+              executeStep(deviceId, loopStep, adb, controller.signal, onLog, screenSize, stealthManager, touchDispatcher, executionContext),
               stepTimeout,
               controller.signal,
-              `步骤 [${loopStep.name || loopStep.type}] 执行超时 (${stepTimeout / 1000}s)`,
+              `步骤 [${tMaybe(loopStep.name) || loopStep.type}] 执行超时 (${stepTimeout / 1000}s)`,
             )
             onStepEnd?.({ stepIndex: index, step: loopStep, success: true })
 
@@ -1536,6 +1978,9 @@ export function createRunner() {
 
             if (stepResult?.__extractedVars) {
               Object.assign(varsMap, stepResult.__extractedVars)
+            }
+            if (stepResult?.cleanPushedMediaAfter && Array.isArray(stepResult.pushedImages)) {
+              mediaFilesToClean.push(...stepResult.pushedImages)
             }
           }
           catch (stepErr) {
@@ -1581,7 +2026,7 @@ export function createRunner() {
         if (step.randomRange > 0 && Math.random() < 0.15) {
           const breathMs = Math.round(3000 + Math.random() * 5000)
           onLog?.({ level: 'info', message: `💤 模拟用户分神暂停 ${(breathMs / 1000).toFixed(1)}s...` })
-          await sleep(breathMs, controller.signal)
+          await sleep(breathMs, controller.signal, controller)
         }
 
         index += 1
@@ -1601,13 +2046,47 @@ export function createRunner() {
       throw error
     }
     finally {
-      currentActiveController = null
       await stealthManager.teardown()
       stopMonitor()
       try {
         await monitorPromise
       }
+
       catch {}
+      if (originalIme) {
+        try {
+          await adb.deviceShell(deviceId, `ime set ${originalIme}`).catch(() => {})
+          onLog?.({ level: 'info', message: `⌨️ 已自动还原原生手机键盘 [${originalIme}]` })
+        }
+        catch {}
+      }
+
+      if (mediaFilesToClean.length > 0) {
+        // 等小红书完成异步上传（轮询 activity 检测），避免在 App 还在读图时删除导致发布失败
+        await waitForUploadComplete(deviceId, adb, {
+          minWaitMs: 6000,
+          maxWaitMs: 90000,
+          pollIntervalMs: 2000,
+          signal: controller.signal,
+          onLog,
+        })
+
+        onLog?.({ level: 'info', message: `🧹 正在自动清理相册中本次注入的 ${mediaFilesToClean.length} 张物料图片...` })
+        try {
+          // 按命名前缀 xhs_mat_ 通配删除本会话注入的图，避免误删用户其他图片
+          // 通配覆盖 pushImageFromUrl 支持的所有扩展名（jpg/png/webp/gif/heic/heif/avif）
+          await adb.deviceShell(deviceId,
+            `rm -f /sdcard/DCIM/Camera/xhs_mat_*.jpg /sdcard/DCIM/Camera/xhs_mat_*.png /sdcard/DCIM/Camera/xhs_mat_*.webp /sdcard/DCIM/Camera/xhs_mat_*.gif /sdcard/DCIM/Camera/xhs_mat_*.heic /sdcard/DCIM/Camera/xhs_mat_*.heif /sdcard/DCIM/Camera/xhs_mat_*.avif`)
+          // 对真实存在的目录重新扫描，让 MediaStore 索引更新（避免"幽灵图"残留显示）
+          await adb.deviceShell(deviceId,
+            `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file:///sdcard/DCIM/Camera"`)
+          onLog?.({ level: 'info', message: '✨ 相册临时物料图片已安全清理完毕！' })
+        }
+        catch (e) {
+          onLog?.({ level: 'warning', message: `清理时出错（不影响主流程）: ${e.message || e}` })
+        }
+      }
+
       await releaseTaskLock()
     }
   }
@@ -1632,14 +2111,83 @@ export async function runAutomationOnDevices({
 
 /**
  * Run an automation script across a devices × variable-rows matrix in true parallel.
- * Concurrency is capped via `common.concurrencyLimit` (default 3) to avoid swamping ADB.
+ * Concurrency defaults to 20 for automation batch runs.
  * Returns a flat list of results for every (device, row) pair.
  */
+const DEFAULT_AUTOMATION_CONCURRENCY = 20
+
+function resolveConcurrencyLimit(concurrencyLimit) {
+  const parsed = Number(
+    concurrencyLimit
+    ?? window.$preload?.store?.get?.('common.concurrencyLimit')
+    ?? DEFAULT_AUTOMATION_CONCURRENCY,
+  )
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_AUTOMATION_CONCURRENCY
+  }
+  return Math.floor(parsed)
+}
+
+function assertMatrixLicense({ deviceList, category, script }) {
+  const licenseStore = useLicenseStore()
+  const cat = category || script?.category || 'general'
+  if (!licenseStore.checkCategoryAccess(cat)) {
+    licenseStore.openUpgradeModal(cat)
+    throw new Error(window.t('license.category.denied'))
+  }
+  const uniqueCount = new Set(deviceList.map(d => d.id).filter(Boolean)).size
+  if (uniqueCount > licenseStore.deviceLimit) {
+    licenseStore.openUpgradeModal()
+    throw new Error(window.t('license.device.limitExceeded', { limit: licenseStore.deviceLimit }))
+  }
+}
+
+async function buildPrefetchedMaterialsByTask(steps, taskCount) {
+  const fetchSteps = (steps || []).filter(step => step?.type === 'fetch_material')
+  if (!fetchSteps.length || taskCount <= 1) {
+    return { slots: [], hasFetchMaterial: false }
+  }
+
+  const { useApiSourceStore } = await import('$/store/api-source/index.js')
+  const apiSourceStore = useApiSourceStore()
+  const reservationsByApi = new Map()
+
+  for (const step of fetchSteps) {
+    const apiId = step.apiId || 'demo_xhs_lifestyle'
+    if (reservationsByApi.has(apiId)) {
+      continue
+    }
+
+    const reserved = await apiSourceStore.reserveUniqueMaterials(
+      apiId,
+      taskCount,
+      step.strategy || 'sequential',
+      { requireUnique: true, allowPartial: true },
+    )
+    reservationsByApi.set(apiId, reserved)
+  }
+
+  const slots = Array.from({ length: taskCount }, (_, taskIndex) => {
+    const prefetched = {}
+    for (const [apiId, reserved] of reservationsByApi) {
+      const material = reserved[taskIndex]
+      if (!material) {
+        return null
+      }
+      prefetched[apiId] = material
+    }
+    return prefetched
+  })
+
+  return { slots, hasFetchMaterial: true }
+}
+
 export async function runAutomationMatrix({
   devices = [],
   rows = [{}],
   steps,
   script,
+  category,
   baseVars = {},
   onDeviceLog,
   onTaskStart,
@@ -1651,16 +2199,30 @@ export async function runAutomationMatrix({
   const finalSteps = steps || script?.steps || []
   const deviceList = (devices || []).map(item => (typeof item === 'string' ? { id: item } : item)).filter(Boolean)
   const rowList = rows?.length ? rows : [{}]
-  const limit = Math.max(1, Number(
-    concurrencyLimit
-    ?? Number(window.$preload?.store?.get?.('common.concurrencyLimit'))
-    ?? 3,
-  ))
+  const limit = resolveConcurrencyLimit(concurrencyLimit)
+
+  assertMatrixLicense({ deviceList, category, script })
 
   const total = deviceList.length * rowList.length
-  let done = 0
+  const { slots: prefetchedByTask, hasFetchMaterial } = await buildPrefetchedMaterialsByTask(finalSteps, total)
+  const skippedMaterialCount = hasFetchMaterial
+    ? prefetchedByTask.filter(slot => slot == null).length
+    : 0
+
+  if (skippedMaterialCount > 0) {
+    const runnableCount = total - skippedMaterialCount
+    ElMessage.warning(
+      runnableCount > 0
+        ? window.t('automation.batch.material.partial', { runnable: runnableCount, skipped: skippedMaterialCount })
+        : window.t('automation.batch.material.exhausted', { skipped: skippedMaterialCount }),
+    )
+  }
+
+  const activeRunners = []
+  let matrixStopped = false
 
   const tasks = []
+  let taskIndex = 0
   for (const device of deviceList) {
     for (let r = 0; r < rowList.length; r++) {
       const rowVars = rowList[r] || {}
@@ -1668,24 +2230,56 @@ export async function runAutomationMatrix({
       const label = rowList.length > 1
         ? `${deviceId} #${r + 1}`
         : deviceId
+      const currentTaskIndex = taskIndex++
+
+      if (hasFetchMaterial && !prefetchedByTask[currentTaskIndex]) {
+        tasks.push(async () => {
+          const result = {
+            deviceId,
+            rowIndex: r,
+            label,
+            success: false,
+            skipped: true,
+            error: window.t('automation.batch.material.skipped'),
+          }
+          onTaskEnd?.(result)
+          return result
+        })
+        continue
+      }
 
       tasks.push(async () => {
+        if (matrixStopped) {
+          const result = {
+            deviceId,
+            rowIndex: r,
+            label,
+            success: false,
+            stopped: true,
+            error: window.t('automation.batch.aborted'),
+          }
+          onTaskEnd?.(result)
+          return result
+        }
+
         const runner = createRunner()
+        activeRunners.push(runner)
         onTaskStart?.({ deviceId, rowIndex: r, total })
         try {
-          await runner.run({
+          const runResult = await runner.run({
             deviceId,
             steps: finalSteps,
             vars: { ...baseVars, ...rowVars },
-            referenceScreenWidth,
-            referenceScreenHeight,
+            referenceScreenWidth: script?.referenceScreenWidth || referenceScreenWidth,
+            referenceScreenHeight: script?.referenceScreenHeight || referenceScreenHeight,
+            prefetchedMaterials: prefetchedByTask[currentTaskIndex] || null,
             onLog: entry => onDeviceLog?.(deviceId, entry),
             onHumanIntervention: async ({ currentActivity }) => {
               onDeviceLog?.(deviceId, {
                 level: 'warning',
                 message: `🖐️ 捕获到物理界面变动 (${currentActivity})，3 秒后自动环境复位归位...`,
               })
-              await sleep(3000)
+              await sleep(3000, runner.controller?.signal, runner.controller)
               await alignAndResumeContext({
                 deviceId,
                 adb: window.$preload.adb,
@@ -1695,16 +2289,31 @@ export async function runAutomationMatrix({
               runner.resume()
             },
           })
-          done += 1
-          const result = { deviceId, rowIndex: r, label, success: true }
+
+          const success = runResult?.success !== false
+          const result = {
+            deviceId,
+            rowIndex: r,
+            label,
+            success,
+            stopped: runResult?.stopped === true,
+            error: success
+              ? undefined
+              : (runResult?.stopped ? window.t('automation.batch.aborted') : window.t('automation.run.failed')),
+          }
           onTaskEnd?.(result)
           return result
         }
         catch (error) {
-          done += 1
           const result = { deviceId, rowIndex: r, label, success: false, error: error?.message || String(error) }
           onTaskEnd?.(result)
           return result
+        }
+        finally {
+          const idx = activeRunners.indexOf(runner)
+          if (idx >= 0) {
+            activeRunners.splice(idx, 1)
+          }
         }
       })
     }
@@ -1722,5 +2331,14 @@ export async function runAutomationMatrix({
   })
   await Promise.all(workers)
 
-  return { total, results }
+  return {
+    total,
+    results,
+    stop: () => {
+      matrixStopped = true
+      for (const runner of [...activeRunners]) {
+        runner.stop()
+      }
+    },
+  }
 }

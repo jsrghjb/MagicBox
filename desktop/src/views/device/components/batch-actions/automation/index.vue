@@ -16,7 +16,7 @@
           <el-option
             v-for="script in availableScripts"
             :key="script.id"
-            :label="script.name"
+            :label="tMaybe(script.name)"
             :value="script.id"
           />
         </el-select>
@@ -105,7 +105,7 @@
 import { deviceSelectionHelper } from '$/utils/device/selection/index.js'
 import { runAutomationMatrix } from '$/utils/automation/runner.js'
 import { automationDataStore } from '$/database/index.js'
-import { useScheduleStore } from '$/store/schedule/index.js'
+import { tMaybe } from '$/utils/automation/step-types.js'
 import { parseCsv, stringifyCsv } from '$/utils/csv/index.js'
 
 defineOptions({ inheritAttrs: false })
@@ -123,7 +123,7 @@ const availableScripts = ref([])
 const pendingDevices = ref([])
 const selectedId = ref('')
 const variableRows = ref([{}])
-const concurrency = ref(3)
+const concurrency = ref(20)
 const results = ref([])
 
 const selectedScript = computed(() => availableScripts.value.find(item => item.id === selectedId.value))
@@ -137,60 +137,6 @@ watch(selectedScript, (script) => {
     variableRows.value = [{}]
   }
 })
-
-const scheduleStore = useScheduleStore()
-
-scheduleStore.registerScheduleType({
-  label: 'automation.name.execute',
-  value: 'automation',
-})
-
-scheduleStore.on('automation', (schedule) => {
-  scheduleStore.start({
-    schedule,
-    handler: handleAutomationSchedule,
-  })
-})
-
-async function handleAutomationSchedule(devices, context) {
-  let config = context.payload?.automationConfig || null
-
-  if (!config && context.extra) {
-    try {
-      config = JSON.parse(context.extra)
-    }
-    catch {
-      config = null
-    }
-  }
-
-  if (!config?.scriptId) {
-    throw new Error('Missing automation script')
-  }
-
-  const result = await automationDataStore.getById(config.scriptId)
-  if (!result.success) {
-    throw new Error('Script not found')
-  }
-
-  const script = result.data
-  loading.value = true
-
-  try {
-    await runAutomationMatrix({
-      devices,
-      rows: config.rows || [config.vars || {}],
-      steps: script.steps || [],
-      baseVars: script.vars || {},
-      concurrencyLimit: config.concurrency,
-      referenceScreenWidth: script.referenceScreenWidth || 1080,
-      referenceScreenHeight: script.referenceScreenHeight || 1920,
-    })
-  }
-  finally {
-    loading.value = false
-  }
-}
 
 async function onTrigger(devices) {
   const selectedDevices = deviceSelectionHelper.filter(devices, 'onlineAndUnique')
@@ -275,6 +221,7 @@ async function handleScriptPicked() {
       devices: pendingDevices.value,
       rows: variableRows.value,
       steps: script.steps || [],
+      script,
       baseVars: script.vars || {},
       concurrencyLimit: concurrency.value,
       referenceScreenWidth: script.referenceScreenWidth || 1080,
@@ -283,15 +230,17 @@ async function handleScriptPicked() {
         results.value.push(item)
       },
     })
-    const failed = results.value.filter(r => !r.success).length
-    if (failed === 0) {
-      ElMessage.success(window.t('automation.batch.done', { count: results.value.length }))
+    const failed = results.value.filter(r => !r.success && !r.skipped).length
+    const skipped = results.value.filter(r => r.skipped).length
+    const ok = results.value.filter(r => r.success).length
+    if (failed === 0 && skipped === 0) {
+      ElMessage.success(window.t('automation.batch.done', { count: ok }))
     }
-    else if (failed === results.value.length) {
+    else if (ok === 0 && failed > 0 && skipped === 0) {
       ElMessage.error(window.t('automation.batch.allFailed', { count: failed }))
     }
     else {
-      ElMessage.warning(window.t('automation.batch.partialDone', { ok: results.value.length - failed, fail: failed }))
+      ElMessage.warning(window.t('automation.batch.partialDone', { ok, fail: failed + skipped }))
     }
   }
   catch (error) {

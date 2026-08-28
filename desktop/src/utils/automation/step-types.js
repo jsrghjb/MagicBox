@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
 
 export const STEP_GROUPS = {
+  smart: ['ui_tap', 'ui_select_media'],
   basic: ['tap', 'swipe', 'input', 'wait', 'key'],
   data: ['fetch_material'],
   extended: ['launch', 'command', 'install', 'screenshot', 'record'],
@@ -9,6 +10,8 @@ export const STEP_GROUPS = {
 }
 
 export const STEP_TYPE_OPTIONS = [
+  { value: 'ui_tap', label: 'automation.step.ui_tap', group: 'smart' },
+  { value: 'ui_select_media', label: 'automation.step.ui_select_media', group: 'smart' },
   { value: 'tap', label: 'automation.step.tap', group: 'basic' },
   { value: 'swipe', label: 'automation.step.swipe', group: 'basic' },
   { value: 'input', label: 'automation.step.input', group: 'basic' },
@@ -28,7 +31,9 @@ export const STEP_TYPE_OPTIONS = [
 ]
 
 export const STEP_TYPE_FALLBACKS = {
-  'automation.step.tap': '点击',
+  'automation.step.ui_tap': 'UI 节点查找与点击/输入',
+  'automation.step.ui_select_media': '相册图片智能多选',
+  'automation.step.tap': '坐标点击',
   'automation.step.swipe': '滑动',
   'automation.step.input': '输入',
   'automation.step.wait': '等待',
@@ -44,6 +49,7 @@ export const STEP_TYPE_FALLBACKS = {
   'automation.step.end': '结束 (End)',
   'automation.step.findImage': '找图点击',
   'automation.step.waitFor': '等待画面',
+  'automation.step.group.smart': '智能 UI 树定位',
   'automation.step.group.basic': '基础操作',
   'automation.step.group.data': '数据与物料',
   'automation.step.group.extended': '扩展操作',
@@ -60,6 +66,24 @@ export function getStepTypeLabel(key) {
     return val
   }
   return STEP_TYPE_FALLBACKS[key] || key
+}
+
+/**
+ * 通用名称本地化辅助：
+ * - 字符串以 'automation.' 开头视为 i18n key，调用 window.t 翻译
+ * - 找不到翻译时回退到原 key（避免显示 raw key）
+ * - 其他字符串原样返回（兼容老脚本 / 用户自定义名称）
+ */
+export function tMaybe(name) {
+  if (!name || typeof name !== 'string') {
+    return name || ''
+  }
+  if (!name.startsWith('automation.')) {
+    return name
+  }
+  const translated = window.t ? window.t(name) : name
+  // 翻译未命中时 i18next 会原样返回 key，此时保留 key 而非显示 raw 字符串
+  return translated && translated !== name ? translated : name
 }
 
 export const KEY_OPTIONS = [
@@ -80,8 +104,8 @@ export const IF_CONDITION_OPTIONS = [
   { value: 'never', label: 'automation.step.if.never' },
 ]
 
-export function createDefaultStep(type = 'tap') {
-  const isRandomizable = type === 'tap' || type === 'swipe'
+export function createDefaultStep(type = 'ui_tap') {
+  const isRandomizable = type === 'tap' || type === 'swipe' || type === 'ui_tap'
   const base = {
     id: nanoid(),
     type,
@@ -92,10 +116,32 @@ export function createDefaultStep(type = 'tap') {
   }
 
   switch (type) {
+    case 'ui_tap':
+      return {
+        ...base,
+        matchType: 'textContains',
+        matchValue: '',
+        action: 'tap', // 'tap' | 'input' | 'assert'
+        textToInput: '',
+        timeout: 15000,
+        optional: false,
+        randomJitter: 12,
+      }
+    case 'ui_select_media':
+      return {
+        ...base,
+        maxCount: '{{api.imageCount}}',
+        multiSelectToggleText: '多选',
+        timeout: 15000,
+        interval: 500,
+      }
+
     case 'tap':
-      return { ...base, x: 0, y: 0 }
+      return { ...base, x: 540, y: 960 }
     case 'swipe':
-      return { ...base, startX: 0, startY: 0, endX: 0, endY: 0, duration: 300 }
+      // 默认 1080x1920 屏上的"上滑"手势：从屏幕中下 (540, 1500) 滑到中上 (540, 500)
+      // 配套 defaultRandomize 后实际坐标会叠加 ±22.5px 高斯偏移，无需担心完全相同
+      return { ...base, startX: 540, startY: 1500, endX: 540, endY: 500, duration: 300 }
     case 'input':
       return { ...base, text: '' }
     case 'wait':
@@ -123,10 +169,12 @@ export function createDefaultStep(type = 'tap') {
         ...base,
         apiId: 'demo_xhs_lifestyle',
         strategy: 'sequential',
-        specificIndex: 0,
+        specificIndex: 1,
         autoPushMedia: true,
+        cleanPushedMediaAfter: true,
         targetVarPrefix: 'api',
       }
+
     case 'findImage':
       return { ...base, imagePath: '', threshold: 0.85, matchRegion: null, saveAs: 'x,y' }
     case 'waitFor':

@@ -49,7 +49,7 @@
         <span class="text-xs text-gray-400 w-5 z-1">{{ index + 1 }}</span>
         <div class="flex-1 min-w-0 z-1">
           <div class="text-sm truncate">
-            {{ step.name || getStepTypeLabel(stepTypeLabel(step.type)) }}
+            {{ tMaybe(step.name) || getStepTypeLabel(stepTypeLabel(step.type)) }}
           </div>
           <div class="text-xs text-gray-400">
             {{ getStepTypeLabel(stepTypeLabel(step.type)) }}
@@ -83,7 +83,7 @@
 </template>
 
 <script setup>
-import { getStepTypeLabel, STEP_TYPE_OPTIONS } from '$/utils/automation/step-types.js'
+import { getStepTypeLabel, STEP_TYPE_OPTIONS, tMaybe } from '$/utils/automation/step-types.js'
 
 const props = defineProps({
   steps: {

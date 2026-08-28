@@ -21,10 +21,10 @@
           <el-radio :model-value="selectedId" :value="template.id" class="mt-0.5" />
           <div class="flex-1 min-w-0">
             <div class="font-bold text-gray-800 dark:text-gray-100 flex items-center justify-between gap-2">
-              <span>{{ template.name }}</span>
+              <span>{{ tMaybe(template.name) }}</span>
             </div>
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-              {{ template.description }}
+              {{ tMaybe(template.description) }}
             </div>
           </div>
         </div>
@@ -45,10 +45,11 @@
 </template>
 
 <script setup>
-import { AUTOMATION_TEMPLATES } from '$/utils/automation/templates.js'
+import { DEFAULT_SCRIPT_CONFIGS } from '$/utils/automation/default-configs.js'
+import { tMaybe } from '$/utils/automation/step-types.js'
 
 defineEmits(['close', 'apply'])
 
-const templates = AUTOMATION_TEMPLATES
+const templates = DEFAULT_SCRIPT_CONFIGS
 const selectedId = ref(templates[0]?.id || '')
 </script>

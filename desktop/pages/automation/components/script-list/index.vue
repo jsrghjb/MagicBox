@@ -19,10 +19,6 @@
               <el-dropdown-item command="import">
                 {{ $t('automation.script.import') }}
               </el-dropdown-item>
-              <el-dropdown-item divided command="restore_presets">
-                <i class="i-bi-arrow-repeat mr-1 text-primary-500"></i>
-                恢复所有预设模板脚本
-              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -53,12 +49,27 @@
           ]"
           @click="handleScriptSelect(script)"
         >
-          <div class="flex items-center gap-2 min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 min-w-0 flex-1">
             <i class="i-bi-file-earmark-code text-gray-400 dark:text-gray-500 group-hover:text-primary-500 flex-none text-base"></i>
-            <span class="truncate text-sm flex-1 min-w-0" :title="script.name">{{ script.name }}</span>
+            <span
+              class="truncate text-sm flex-1 min-w-0"
+              :title="getScriptDisplayName(script)"
+            >
+              {{ getScriptDisplayName(script) }}
+            </span>
+            <span
+              v-if="isPresetScript(script)"
+              class="text-[10px] leading-none px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-300 border border-sky-100 dark:border-sky-900 flex-none shrink-0"
+            >
+              {{ presetBadgeLabel }}
+            </span>
           </div>
 
-          <el-dropdown trigger="click" @command="(cmd) => handleItemCommand(cmd, script)">
+          <el-dropdown
+            v-if="!isPresetScript(script)"
+            trigger="click"
+            @command="(cmd) => handleItemCommand(cmd, script)"
+          >
             <el-button
               text
               circle
@@ -125,10 +136,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { db, useAutomationScripts } from '$/database/index.js'
+import { useAutomationScripts } from '$/database/index.js'
+import { getPresetBadgeLabel, getScriptDisplayName, isPresetScript } from '$/utils/automation/preset-scripts.js'
 import { useLicenseStore } from '$/store/license/index.js'
-import { AUTOMATION_TEMPLATES } from '$/utils/automation/templates.js'
 import LicenseUpgradeModal from '$/components/license-upgrade-modal/index.vue'
 
 const props = defineProps({
@@ -155,6 +165,7 @@ const emit = defineEmits(['select', 'create', 'delete', 'import', 'export', 'tem
 const licenseStore = useLicenseStore()
 const { scripts, updateScript } = useAutomationScripts(computed(() => props.deviceId))
 const fileInputRef = ref(null)
+const presetBadgeLabel = computed(() => getPresetBadgeLabel())
 
 const categoryLabels = {
   general: '基础日常',
@@ -215,34 +226,6 @@ function handleCommand(command) {
   }
   else if (command === 'import') {
     fileInputRef.value?.click()
-  }
-  else if (command === 'restore_presets') {
-    handleRestorePresets()
-  }
-}
-
-async function handleRestorePresets() {
-  const now = Date.now()
-  const defaultList = AUTOMATION_TEMPLATES.map((tmpl, idx) => ({
-    id: `preset_${tmpl.id}_${Date.now()}_${idx}`,
-    deviceId: 'common',
-    name: tmpl.name,
-    category: 'general',
-    steps: tmpl.buildSteps(),
-    vars: tmpl.vars || {},
-    schemaVersion: 2,
-    referenceScreenWidth: 1080,
-    referenceScreenHeight: 1920,
-    createdAt: now + idx * 100,
-    updatedAt: now + idx * 100,
-  }))
-  try {
-    await db.automation_scripts.bulkAdd(defaultList)
-    ElMessage.success('已成功恢复所有预设模板脚本！')
-  }
-  catch (err) {
-    console.error(err)
-    ElMessage.error('恢复预设脚本失败')
   }
 }
 

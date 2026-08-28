@@ -85,7 +85,7 @@
             <template v-else>
               <div v-for="(step, index) in recordedSteps" :key="step.id" class="flex items-center justify-between py-1.5 border-b dark:border-gray-800 last:border-0 hover:bg-gray-100 dark:hover:bg-gray-800/50 px-1 rounded transition-colors">
                 <span class="text-gray-400 font-mono w-6 flex-none">#{{ index + 1 }}</span>
-                <span class="font-medium mx-1 flex-1 truncate text-gray-700 dark:text-gray-300" :title="step.name">{{ step.name }}</span>
+                <span class="font-medium mx-1 flex-1 truncate text-gray-700 dark:text-gray-300" :title="tMaybe(step.name)">{{ tMaybe(step.name) }}</span>
                 <span class="text-gray-400 flex-none mr-2">延时: {{ (step.delayBefore / 1000).toFixed(1) }}s</span>
                 <el-button type="danger" link size="small" icon="Delete" class="p-0 !min-h-0" @click="recordedSteps.splice(index, 1)" />
               </div>
@@ -111,6 +111,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useClusterVideo } from '$/views/cluster/hooks/use-cluster-video.js'
 import { useClusterPointer } from '$/views/cluster/hooks/use-cluster-pointer.js'
+import { tMaybe } from '$/utils/automation/step-types.js'
 
 const props = defineProps({
   deviceId: {

@@ -58,6 +58,12 @@
           </el-button>
         </el-tooltip>
 
+        <el-tooltip v-if="isRunningAutomation" :content="$t('automation.batch.abort')" placement="bottom">
+          <el-button type="danger" plain @click="handleAbortScript">
+            <i class="i-bi-stop-circle"></i>
+          </el-button>
+        </el-tooltip>
+
         <el-tooltip v-if="masterSerial" :content="isMasterMaximized ? '退出单控同步' : '单控同步'" placement="bottom">
           <el-button
             :type="isMasterMaximized ? 'success' : 'info'"
@@ -202,7 +208,7 @@
             <el-option
               v-for="script in availableScripts"
               :key="script.id"
-              :label="script.name"
+              :label="tMaybe(script.name)"
               :value="script.id"
             />
           </el-select>
@@ -241,8 +247,8 @@
           :key="index"
           class="flex items-center gap-2 text-xs"
         >
-          <el-tag :type="item.success ? 'success' : 'danger'" size="small">
-            {{ item.success ? 'OK' : 'FAIL' }}
+          <el-tag :type="item.success ? 'success' : (item.skipped ? 'info' : 'danger')" size="small">
+            {{ item.success ? 'OK' : (item.skipped ? 'SKIP' : 'FAIL') }}
           </el-tag>
           <span class="truncate flex-1">{{ item.label }}</span>
           <span v-if="item.error" class="text-red-500 truncate">{{ item.error }}</span>
@@ -276,6 +282,7 @@ import { useClusterLayout } from './hooks/use-cluster-layout.js'
 import { useClusterPointer } from './hooks/use-cluster-pointer.js'
 import { useClusterVideo } from './hooks/use-cluster-video.js'
 import { automationDataStore } from '$/database/index.js'
+import { tMaybe } from '$/utils/automation/step-types.js'
 import { usePreferenceStore } from '$/store/preference/index.js'
 import { useLicenseStore } from '$/store/license/index.js'
 
@@ -800,6 +807,7 @@ const availableScripts = ref([])
 const selectedScriptId = ref('')
 const variableRows = ref([{}])
 const runResults = ref([])
+const matrixStopRef = ref(null)
 
 const selectedRunnerScript = computed(() => availableScripts.value.find(s => s.id === selectedScriptId.value))
 const variableNames = computed(() => Object.keys(selectedRunnerScript.value?.vars || {}))
@@ -859,27 +867,33 @@ async function handleRunScript() {
   scriptRunnerVisible.value = false
   isRunningAutomation.value = true
   runResults.value = []
+  matrixStopRef.value = null
   ElMessage.info(window.t('automation.batch.executing'))
   try {
     const { runAutomationMatrix } = await import('$/utils/automation/runner.js')
-    await runAutomationMatrix({
+    const matrixRun = await runAutomationMatrix({
       devices: devices.value.map(d => ({ id: d.serial })),
       rows: variableRows.value,
       steps: script.steps || [],
+      script,
       baseVars: script.vars || {},
+      concurrencyLimit: 20,
       onTaskEnd: (item) => {
         runResults.value.push(item)
       },
     })
-    const failed = runResults.value.filter(r => !r.success).length
-    if (failed === 0) {
-      ElMessage.success(window.t('cluster.runScript.done', { count: runResults.value.length }))
+    matrixStopRef.value = matrixRun.stop
+    const skipped = runResults.value.filter(r => r.skipped).length
+    const failed = runResults.value.filter(r => !r.success && !r.skipped).length
+    const ok = runResults.value.filter(r => r.success).length
+    if (failed === 0 && skipped === 0) {
+      ElMessage.success(window.t('cluster.runScript.done', { count: ok }))
     }
-    else if (failed === runResults.value.length) {
+    else if (ok === 0 && failed > 0 && skipped === 0) {
       ElMessage.error(window.t('cluster.runScript.allFailed', { count: failed }))
     }
     else {
-      ElMessage.warning(window.t('cluster.runScript.partial', { ok: runResults.value.length - failed, fail: failed }))
+      ElMessage.warning(window.t('cluster.runScript.partial', { ok, fail: failed + skipped }))
     }
   }
   catch (error) {
@@ -888,7 +902,13 @@ async function handleRunScript() {
   }
   finally {
     isRunningAutomation.value = false
+    matrixStopRef.value = null
   }
+}
+
+function handleAbortScript() {
+  matrixStopRef.value?.()
+  ElMessage.info(window.t('automation.batch.aborted'))
 }
 </script>
 

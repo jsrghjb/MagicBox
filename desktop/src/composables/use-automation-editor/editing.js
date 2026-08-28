@@ -1,4 +1,5 @@
 import { createDefaultStep } from '$/utils/automation/step-types.js'
+import { isPresetScript } from '$/utils/automation/preset-scripts.js'
 
 /**
  * Step/script editing actions. Pure mutation of currentScript.
@@ -34,6 +35,11 @@ export function useAutomationEditorActions(ctx) {
   }
 
   async function handleDeleteScript(script) {
+    if (isPresetScript(script)) {
+      ElMessage.warning(window.t('automation.script.preset.cannotDelete'))
+      return
+    }
+
     try {
       await ElMessageBox.confirm(window.t('automation.script.confirmDelete'), { type: 'warning' })
     }

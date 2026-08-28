@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 
-const VAR_PATTERN = /\{([a-z_]\w*)\}/gi
+const VAR_PATTERN = /\{\{?\s*([a-z_][\w.]*)\s*\}?\}/gi
 
 export function getSystemVariables(context = {}) {
   const now = Date.now()
@@ -29,8 +29,9 @@ export function interpolateValue(value, vars = {}) {
   }
 
   return value.replace(VAR_PATTERN, (match, name) => {
-    if (Object.prototype.hasOwnProperty.call(vars, name)) {
-      return String(vars[name])
+    const trimmed = name.trim()
+    if (Object.prototype.hasOwnProperty.call(vars, trimmed)) {
+      return String(vars[trimmed])
     }
     return match
   })
@@ -49,5 +50,5 @@ export function interpolateStep(step, vars = {}) {
 }
 
 export function isValidVarName(name = '') {
-  return /^[a-z_]\w*$/i.test(name)
+  return /^[a-z_][\w.]*$/i.test(name)
 }

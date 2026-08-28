@@ -7,7 +7,7 @@ function registerAll(mainApp) {
   unregisterAll()
 
   const automationConfig = store.get('automation') || {}
-  const enable = automationConfig.enableHotkeys ?? true
+  const enable = automationConfig.enableHotkeys ?? false
   if (!enable)
     return
 

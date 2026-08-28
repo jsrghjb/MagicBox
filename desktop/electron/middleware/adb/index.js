@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import sharp from 'sharp'
 import { adbKeyboardApkPath, desktopPath, getDefaultAdbPath } from '$electron/configs/index.js'
 import electronStore from '$electron/helpers/store/index.js'
 import { Adb } from '@devicefarmer/adbkit'
@@ -213,7 +214,10 @@ export async function pushImageFromUrl(deviceId, url, remotePath = '/sdcard/DCIM
   let localTempFile = ''
   try {
     let buffer
+    let mime = 'image/jpeg'
     if (url.startsWith('data:image/')) {
+      const match = url.match(/^data:image\/([\w+-]+);base64,/)
+      mime = match ? `image/${match[1]}` : 'image/jpeg'
       const base64Data = url.replace(/^data:image\/\w+;base64,/, '')
       buffer = Buffer.from(base64Data, 'base64')
     }
@@ -222,11 +226,54 @@ export async function pushImageFromUrl(deviceId, url, remotePath = '/sdcard/DCIM
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`)
       }
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.startsWith('image/')) {
+        mime = contentType.split(';')[0].trim()
+      }
       const arrayBuffer = await res.arrayBuffer()
       buffer = Buffer.from(arrayBuffer)
     }
 
-    const fileName = `xhs_mat_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`
+    // 注入 EXIF DateTimeOriginal（拍摄时间），避免被 adb push 后的图因 date_taken=0
+    // 排到相册最末，导致自动化按视觉位置选图时选到用户的旧图。
+    // 仅 JPEG 有效；PNG/WEBP/HEIC 等格式 Android 走 file mtime，无需此步骤。
+    if (mime === 'image/jpeg' || mime === 'image/jpg') {
+      try {
+        const now = new Date()
+        const exifDateTime = `${now.getFullYear()}:${String(now.getMonth() + 1).padStart(2, '0')}:${String(now.getDate()).padStart(2, '0')} `
+          + `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+        buffer = await sharp(buffer)
+          .withExif({
+            IFD0: {
+              DateTime: exifDateTime,
+              Software: 'escrcpy-automation',
+            },
+            exif: {
+              DateTimeOriginal: exifDateTime,
+              DateTimeDigitized: exifDateTime,
+            },
+          })
+          .toBuffer()
+      }
+      catch (e) {
+        // EXIF 写入失败不应阻塞推送（不致命），仅打 warning
+        console.warn('Failed to inject EXIF date_taken, falling back to file mtime:', e?.message || e)
+      }
+    }
+
+    // 根据 MIME 推断扩展名，避免 Android 媒体扫描器因扩展名不匹配而不索引
+    const mimeToExt = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+      'image/heic': 'heic',
+      'image/heif': 'heif',
+      'image/avif': 'avif',
+    }
+    const ext = mimeToExt[mime] || mime.split('/')[1] || 'jpg'
+    const fileName = `xhs_mat_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`
     localTempFile = path.join(os.tmpdir(), fileName)
     fs.writeFileSync(localTempFile, buffer)
 

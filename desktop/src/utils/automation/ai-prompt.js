@@ -13,10 +13,9 @@ Output ONLY valid JSON (no markdown, no explanation) with this schema:
 IMPORTANT: The script uses a reference resolution of 1080x1920. Coordinates (x, y, startX, startY, endX, endY) should be generated relative to this resolution. At runtime, Escrcpy will automatically scale these coordinates to match the target device's actual screen resolution.
 
 AutomationStep fields:
-- type: one of tap, swipe, input, wait, key, launch, command, screenshot
+- type: one of tap, swipe, input, wait, key, launch, command, screenshot, loop, end
 - name: short step label
 - delayBefore: ms before step (default 0)
-- loopCount: default 1
 - randomRange: default 0
 
 Type-specific fields:
@@ -28,6 +27,8 @@ Type-specific fields:
 - launch: package, forceStop (boolean)
 - command: adb shell command without "adb -s"
 - screenshot: auto (boolean, default true)
+- loop: iterations (repeat count), breakOnFail (boolean)
+- end: closes the nearest loop or if block
 
 Rules:
 1. Prefer launch + wait before UI interactions.
@@ -38,7 +39,8 @@ Rules:
 6. Do not use install or record unless explicitly requested.
 7. Keep scripts practical and executable.
 8. For tap and swipe steps, set a randomRange (e.g., 1 to 3) to simulate human touch and prevent anti-fraud detection by platforms.
-9. Always include referenceScreenWidth: 1080 and referenceScreenHeight: 1920 in the output JSON.`
+9. To repeat steps, wrap them with loop/end and set loop.iterations instead of repeating individual steps.
+10. Always include referenceScreenWidth: 1080 and referenceScreenHeight: 1920 in the output JSON.`
 
 export function buildAutomationUserPrompt({ task, deviceId, screenSize } = {}) {
   const lines = [

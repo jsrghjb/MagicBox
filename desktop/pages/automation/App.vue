@@ -116,7 +116,7 @@
               <div class="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
                 <StepEditor
                   v-if="selectedStep"
-                  class="flex-none"
+                  class="flex-1 min-h-0"
                   :step="selectedStep"
                   :device-id="deviceId"
                   @update="handleUpdateStep"
@@ -126,12 +126,6 @@
                   v-else
                   class="flex-1"
                   :description="$t('automation.step.selectHint')"
-                />
-
-                <MagicVariables
-                  class="flex-1 min-h-0"
-                  :vars="currentScript.vars || {}"
-                  @update="handleUpdateVars"
                 />
               </div>
 
@@ -207,8 +201,8 @@ import StepList from './components/step-list/index.vue'
 import StepEditor from './components/step-editor/index.vue'
 import RunToolbar from './components/run-toolbar/index.vue'
 import LogPanel from './components/log-panel/index.vue'
-import MagicVariables from './components/magic-variables/index.vue'
 import TemplateSelector from './components/template-selector/index.vue'
+
 import BatchDialog from './components/batch-dialog/index.vue'
 import AiGenerator from './components/ai-generator/index.vue'
 import MacroRecorder from './components/macro-recorder/index.vue'

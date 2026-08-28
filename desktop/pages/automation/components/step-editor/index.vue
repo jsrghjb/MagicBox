@@ -15,7 +15,7 @@
     <div class="pr-2">
       <el-form label-width="110px" size="small" class="pr-2">
         <el-form-item :label="$t('automation.step.name')">
-          <el-input :model-value="step.name" @update:model-value="update('name', $event)" />
+          <el-input :model-value="tMaybe(step.name)" @update:model-value="update('name', $event)" />
         </el-form-item>
 
         <el-form-item :label="$t('automation.step.type')">
@@ -51,26 +51,6 @@
             <el-tooltip
               raw-content
               :content="$t('automation.step.delayBefore.tip')"
-              placement="top"
-            >
-              <el-icon class="text-gray-400 cursor-help text-lg flex-none">
-                <QuestionFilled />
-              </el-icon>
-            </el-tooltip>
-          </div>
-        </el-form-item>
-
-        <el-form-item v-if="!isControlStep" :label="$t('automation.step.loopCount')">
-          <div class="flex items-center gap-2 w-full">
-            <el-input-number
-              :model-value="step.loopCount || 1"
-              :min="1"
-              class="w-full"
-              @update:model-value="update('loopCount', $event)"
-            />
-            <el-tooltip
-              raw-content
-              :content="$t('automation.step.loopCount.tip')"
               placement="top"
             >
               <el-icon class="text-gray-400 cursor-help text-lg flex-none">
@@ -124,6 +104,120 @@
             @update:model-value="update('expectedActivity', $event)"
           />
         </el-form-item>
+
+        <template v-if="step.type === 'ui_tap'">
+          <el-form-item label="匹配规则">
+            <el-select
+              :model-value="step.matchType || 'textContains'"
+              class="w-full"
+              @update:model-value="update('matchType', $event)"
+            >
+              <el-option label="包含文字 (textContains)" value="textContains" />
+              <el-option label="文字完全匹配 (text)" value="text" />
+              <el-option label="包含无障碍描述 (descContains)" value="descContains" />
+              <el-option label="无障碍描述完全匹配 (desc)" value="desc" />
+              <el-option label="控件 ID (resourceId)" value="resourceId" />
+              <el-option label="控件类型 (className)" value="className" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="目标关键字 / ID">
+            <el-input
+              :model-value="step.matchValue"
+              placeholder="如: 发布 / 下一步 / 填写标题 / btn_submit"
+              @update:model-value="update('matchValue', $event)"
+            />
+          </el-form-item>
+
+          <el-form-item label="命中后动作">
+            <el-radio-group
+              :model-value="step.action || 'tap'"
+              @update:model-value="update('action', $event)"
+            >
+              <el-radio value="tap">
+                👆 拟人点击
+              </el-radio>
+              <el-radio value="input">
+                ✍️ 聚焦并输入
+              </el-radio>
+              <el-radio value="assert">
+                ✅ 仅断言存在
+              </el-radio>
+            </el-radio-group>
+          </el-form-item>
+
+          <el-form-item v-if="step.action === 'input'" label="待输入内容">
+            <el-input
+              :model-value="step.textToInput"
+              placeholder="支持变量，如: {{api.title}} 或 {{api.content}}"
+              type="textarea"
+              :rows="2"
+              @update:model-value="update('textToInput', $event)"
+            />
+          </el-form-item>
+
+          <el-form-item label="超时等待 (ms)">
+            <div class="flex items-center gap-2 w-full">
+              <el-input-number
+                :model-value="step.timeout || 15000"
+                :min="500"
+                :step="1000"
+                class="w-full"
+                @update:model-value="update('timeout', $event)"
+              />
+            </div>
+          </el-form-item>
+
+          <el-form-item label="防风控随机扰动">
+            <div class="flex items-center gap-2 w-full">
+              <el-input-number
+                :model-value="step.randomJitter != null ? step.randomJitter : 12"
+                :min="0"
+                :max="50"
+                class="w-full"
+                @update:model-value="update('randomJitter', $event)"
+              />
+              <span class="text-xs text-gray-400 flex-none">像素 (±px)</span>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="容错选项">
+            <el-checkbox
+              :model-value="Boolean(step.optional)"
+              @update:model-value="update('optional', $event)"
+            >
+              找不到时直接跳过 (用于可选弹窗/提示)
+            </el-checkbox>
+          </el-form-item>
+        </template>
+
+        <template v-if="step.type === 'ui_select_media'">
+          <el-form-item label="勾选图片数量">
+            <el-input
+              :model-value="step.maxCount || '{{api.imageCount}}'"
+              placeholder="支持固定数字或变量 {{api.imageCount}}"
+              @update:model-value="update('maxCount', $event)"
+            />
+          </el-form-item>
+
+          <el-form-item label="多选按钮文字">
+            <el-input
+              :model-value="step.multiSelectToggleText || '多选'"
+              placeholder="相册界面「多选」开关文字"
+              @update:model-value="update('multiSelectToggleText', $event)"
+            />
+          </el-form-item>
+
+          <el-form-item label="等待超时 (ms)">
+            <el-input-number
+              :model-value="step.timeout || 6000"
+              :min="1000"
+              :step="500"
+              class="w-full"
+              @update:model-value="update('timeout', $event)"
+            />
+          </el-form-item>
+        </template>
 
         <template v-if="step.type === 'tap'">
           <el-form-item :label="$t('automation.step.coordinates')">
@@ -254,12 +348,15 @@
             </el-radio-group>
           </el-form-item>
 
-          <el-form-item v-if="step.strategy === 'specific'" label="指定索引 (从0起)">
-            <el-input-number
-              :model-value="step.specificIndex || 0"
-              :min="0"
-              @update:model-value="update('specificIndex', $event)"
-            />
+          <el-form-item v-if="step.strategy === 'specific'" label="指定序号">
+            <div class="flex items-center gap-2">
+              <el-input-number
+                :model-value="step.specificIndex || 1"
+                :min="1"
+                @update:model-value="update('specificIndex', $event)"
+              />
+              <span class="text-xs text-gray-400">对应接口列表中显示的 #1, #2 序号</span>
+            </div>
           </el-form-item>
 
           <el-form-item label="自动注入相册">
@@ -268,21 +365,19 @@
                 :model-value="step.autoPushMedia !== false"
                 @update:model-value="update('autoPushMedia', $event)"
               />
-              <span class="text-xs text-gray-500">将接口图片自动推送到手机相册第 1 张</span>
+              <span class="text-xs text-gray-500">将接口图片自动推送到手机相册</span>
             </div>
           </el-form-item>
 
-          <div class="bg-blue-50/70 dark:bg-blue-950/30 p-2.5 rounded-lg border border-blue-200/50 dark:border-blue-800/50 text-[11px] text-blue-700 dark:text-blue-300 space-y-1 mb-3">
-            <div class="font-bold flex items-center gap-1">
-              <i class="i-bi-info-circle-fill"></i>
-              <span>执行时将自动生成以下变量（后续输入步骤可直接填入）：</span>
+          <el-form-item v-if="step.autoPushMedia !== false" label="发布后清理相册">
+            <div class="flex items-center gap-2">
+              <el-switch
+                :model-value="Boolean(step.cleanPushedMediaAfter)"
+                @update:model-value="update('cleanPushedMediaAfter', $event)"
+              />
+              <span class="text-xs text-gray-500">脚本完成后自动删除相册中刚注入的物料图片，避免占用空间</span>
             </div>
-            <div class="font-mono text-[10px] space-y-0.5 pl-4">
-              <div>• 标题：<code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">&#123;&#123;api.title&#125;&#125;</code></div>
-              <div>• 正文：<code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">&#123;&#123;api.content&#125;&#125;</code></div>
-              <div>• 话题标签：<code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">&#123;&#123;api.tags&#125;&#125;</code></div>
-            </div>
-          </div>
+          </el-form-item>
         </template>
 
         <template v-if="step.type === 'input'">
@@ -532,7 +627,7 @@
 <script setup>
 import InputPath from '$/components/preference-form/components/input-path/index.vue'
 import AppSelector from '$/components/app-selector/index.vue'
-import { createDefaultStep, getStepTypeLabel, IF_CONDITION_OPTIONS, KEY_OPTIONS, STEP_GROUPS, STEP_TYPE_OPTIONS } from '$/utils/automation/step-types.js'
+import { createDefaultStep, getStepTypeLabel, IF_CONDITION_OPTIONS, KEY_OPTIONS, STEP_GROUPS, STEP_TYPE_OPTIONS, tMaybe } from '$/utils/automation/step-types.js'
 import { useApiSourceStore } from '$/store/api-source/index.js'
 import CoordinatePicker from '../coordinate-picker/index.vue'
 
@@ -556,9 +651,13 @@ const pickerMode = ref('tap')
 const keyOptions = KEY_OPTIONS
 const ifConditionOptions = IF_CONDITION_OPTIONS
 const isControlStep = computed(() => ['if', 'loop', 'end'].includes(props.step?.type))
-const isRandomizableStep = computed(() => ['tap', 'swipe', 'wait'].includes(props.step?.type))
+const isRandomizableStep = computed(() => ['tap', 'swipe', 'wait', 'ui_tap'].includes(props.step?.type))
 
 const stepGroups = computed(() => [
+  {
+    label: 'automation.step.group.smart',
+    options: STEP_TYPE_OPTIONS.filter(item => (STEP_GROUPS.smart || []).includes(item.value)),
+  },
   {
     label: 'automation.step.group.basic',
     options: STEP_TYPE_OPTIONS.filter(item => STEP_GROUPS.basic.includes(item.value)),

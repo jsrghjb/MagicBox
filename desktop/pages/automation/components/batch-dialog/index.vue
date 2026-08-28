@@ -114,6 +114,13 @@
         {{ $t('common.cancel') }}
       </el-button>
       <el-button
+        v-if="executing"
+        type="danger"
+        @click="handleAbort"
+      >
+        {{ $t('automation.batch.abort') }}
+      </el-button>
+      <el-button
         type="primary"
         :loading="executing"
         :disabled="!selectedScriptId || !deviceSelection.length"
@@ -150,8 +157,9 @@ const onlineDevices = computed(() => deviceStore.list.filter(d => d.status === '
 const selectedScriptId = ref('')
 const variableRows = ref([{}])
 const executing = ref(false)
-const concurrency = ref(3)
+const concurrency = ref(20)
 const results = ref([])
+const matrixStopRef = ref(null)
 
 const deviceSelection = ref(props.deviceId ? [props.deviceId] : [])
 
@@ -243,6 +251,7 @@ async function handleExecute() {
   }
   executing.value = true
   results.value = []
+  matrixStopRef.value = null
 
   try {
     const result = await automationDataStore.getById(selectedScriptId.value)
@@ -252,10 +261,11 @@ async function handleExecute() {
     const script = result.data
     const devices = deviceSelection.value.map(id => ({ id }))
 
-    await runAutomationMatrix({
+    const matrixRun = await runAutomationMatrix({
       devices,
       rows: variableRows.value,
       steps: script.steps || [],
+      script,
       baseVars: script.vars || {},
       concurrencyLimit: concurrency.value,
       onDeviceLog: () => {},
@@ -264,15 +274,19 @@ async function handleExecute() {
       },
     })
 
-    const failed = results.value.filter(r => !r.success).length
-    if (failed === 0) {
-      ElMessage.success(window.t('automation.batch.done', { count: results.value.length }))
+    matrixStopRef.value = matrixRun.stop
+
+    const skipped = results.value.filter(r => r.skipped).length
+    const failed = results.value.filter(r => !r.success && !r.skipped).length
+    const ok = results.value.filter(r => r.success).length
+    if (failed === 0 && skipped === 0) {
+      ElMessage.success(window.t('automation.batch.done', { count: ok }))
     }
-    else if (failed === results.value.length) {
+    else if (ok === 0 && failed > 0 && skipped === 0) {
       ElMessage.error(window.t('automation.batch.allFailed', { count: failed }))
     }
     else {
-      ElMessage.warning(window.t('automation.batch.partialDone', { ok: results.value.length - failed, fail: failed }))
+      ElMessage.warning(window.t('automation.batch.partialDone', { ok, fail: failed + skipped }))
     }
   }
   catch (error) {
@@ -280,6 +294,12 @@ async function handleExecute() {
   }
   finally {
     executing.value = false
+    matrixStopRef.value = null
   }
+}
+
+function handleAbort() {
+  matrixStopRef.value?.()
+  ElMessage.info(window.t('automation.batch.aborted'))
 }
 </script>

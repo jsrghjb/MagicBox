@@ -28,7 +28,7 @@
             v-for="(item, name) of preferenceModel"
             :key="name"
             :name="name"
-            class="overflow-hidden"
+            class="overflow-hidden min-w-0"
           >
             <template #title>
               <div
@@ -46,7 +46,10 @@
                 </div>
               </div>
             </template>
-            <div class="pr-8 pt-4">
+            <div
+              class="pt-4 min-w-0 max-w-full overflow-hidden box-border pr-4 md:pr-8"
+              :class="{ 'pl-4': name === 'api' }"
+            >
               <ApiManagement v-if="name === 'api'" />
               <el-row v-else :gutter="20">
                 <el-col

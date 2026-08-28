@@ -60,11 +60,12 @@
           <div class="flex items-center justify-between gap-3 flex-none bg-gray-50/70 dark:bg-gray-900/50 p-2 rounded-xl border border-gray-200/60 dark:border-gray-800/60 min-w-0">
             <!-- 左侧: 脚本名称 -->
             <el-input
-              v-model="currentScript.name"
+              :model-value="tMaybe(currentScript.name)"
               placeholder="请输入脚本名称"
               clearable
               style="width: 380px; min-width: 260px; max-width: 480px;"
               class="!w-96 flex-none"
+              @update:model-value="currentScript.name = $event"
             >
               <template #prefix>
                 <i class="i-bi-pencil-square text-gray-400 text-sm"></i>
@@ -108,7 +109,7 @@
             <div class="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
               <StepEditor
                 v-if="selectedStep"
-                class="flex-none"
+                class="flex-1 min-h-0"
                 :step="selectedStep"
                 :device-id="deviceId"
                 @update="handleUpdateStep"
@@ -118,12 +119,6 @@
                 v-else
                 class="flex-1"
                 :description="$t('automation.step.selectHint')"
-              />
-
-              <MagicVariables
-                class="flex-1 min-h-0"
-                :vars="currentScript.vars || {}"
-                @update="handleUpdateVars"
               />
             </div>
 
@@ -200,6 +195,7 @@ import { useAutomationEditor } from '$/composables/use-automation-editor/index.j
 import { computed, onMounted, ref } from 'vue'
 import { useDeviceStore } from '$/store/device/index.js'
 import { useLicenseStore } from '$/store/license/index.js'
+import { tMaybe } from '$/utils/automation/step-types.js'
 import LicenseUpgradeModal from '$/components/license-upgrade-modal/index.vue'
 
 import ScriptList from '$automation/components/script-list/index.vue'
@@ -207,8 +203,8 @@ import StepList from '$automation/components/step-list/index.vue'
 import StepEditor from '$automation/components/step-editor/index.vue'
 import RunToolbar from '$automation/components/run-toolbar/index.vue'
 import LogPanel from '$automation/components/log-panel/index.vue'
-import MagicVariables from '$automation/components/magic-variables/index.vue'
 import TemplateSelector from '$automation/components/template-selector/index.vue'
+
 import BatchDialog from '$automation/components/batch-dialog/index.vue'
 import AiGenerator from '$automation/components/ai-generator/index.vue'
 import MacroRecorder from '$automation/components/macro-recorder/index.vue'

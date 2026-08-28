@@ -1,5 +1,6 @@
-import { AUTOMATION_TEMPLATES, buildTemplateSteps } from '$/utils/automation/templates.js'
+import { DEFAULT_SCRIPT_CONFIGS } from '$/utils/automation/default-configs.js'
 import { downloadScriptJson, readScriptJsonFile } from '$/utils/automation/export-import.js'
+import { tMaybe } from '$/utils/automation/step-types.js'
 import { useLicenseStore } from '$/store/license/index.js'
 import { useDeviceStore } from '$/store/device/index.js'
 
@@ -111,9 +112,15 @@ export function useAutomationEditorRuns(ctx) {
   }
 
   function handleTemplateApply(templateId) {
-    const template = AUTOMATION_TEMPLATES.find(t => t.id === templateId)
-    const { steps, vars, category, referenceScreenWidth, referenceScreenHeight } = buildTemplateSteps(templateId)
-    const scriptName = template ? template.name : window.t('automation.script.new')
+    const template = DEFAULT_SCRIPT_CONFIGS.find(t => t.id === templateId)
+    if (!template) {
+      ElMessage.error('模板不存在')
+      return
+    }
+    const scriptName = tMaybe(template.name)
+    const { steps, vars, category } = template
+    const referenceScreenWidth = 1080
+    const referenceScreenHeight = 1920
     if (!ctx.currentScript.value) {
       ctx.createScript({
         deviceId: ctx.deviceId?.value || 'common',

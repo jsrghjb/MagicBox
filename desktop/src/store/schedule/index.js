@@ -427,7 +427,6 @@ export const useScheduleStore = defineStore('app-schedule', () => {
 
   function on(name, callback) {
     scheduleListeners.set(name, callback)
-    recoverSchedules({ scheduleType: name })
 
     return {
       off() {

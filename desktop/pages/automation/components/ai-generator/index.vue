@@ -86,7 +86,7 @@
               <el-tag size="small" disable-transitions class="flex-none shadow-sm" effect="plain">
                 {{ $t(`automation.step.${step.type}`) }}
               </el-tag>
-              <span class="truncate text-gray-700 dark:text-gray-200" :title="step.name">{{ step.name }}</span>
+              <span class="truncate text-gray-700 dark:text-gray-200" :title="tMaybe(step.name)">{{ tMaybe(step.name) }}</span>
             </div>
           </div>
         </div>
@@ -124,6 +124,7 @@ import {
   getAutomationAiConfig,
   isAutomationAiConfigured,
 } from '$/utils/automation/ai-config.js'
+import { tMaybe } from '$/utils/automation/step-types.js'
 
 const props = defineProps({
   deviceId: {

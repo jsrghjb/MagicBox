@@ -8,6 +8,7 @@
 import Layouts from './layouts/index.vue'
 import { automationDataStore } from '$/database/index.js'
 import { runAutomationOnDevices } from '$/utils/automation/runner.js'
+import { registerAutomationScheduleHandler } from '$/utils/automation/schedule-handler.js'
 
 const router = useRouter()
 
@@ -23,6 +24,8 @@ window.$preload.ipcRenderer.on('quit-before', async () => {
 const startApp = useStartApp()
 const scheduleStore = useScheduleStore()
 
+registerAutomationScheduleHandler(scheduleStore)
+
 window.$preload.ipcRenderer.on('execute-arguments-change', async (event, params) => {
   startApp.open(params)
 })
@@ -37,7 +40,7 @@ window.$preload.ipcRenderer.on('dev-mode-warning', (event, message) => {
 
 window.$preload.ipcRenderer.on('trigger-macro', async (event, index) => {
   const deviceStore = useDeviceStore()
-  const activeDevices = deviceStore.list.filter(d => d.status === 'connected' || d.status === 'synergy')
+  const activeDevices = deviceStore.list.filter(d => d.status === 'device')
   if (!activeDevices.length) {
     ElMessage.warning('快捷键已触发，但没有找到任何在线且连接的设备以运行宏指令。')
     return

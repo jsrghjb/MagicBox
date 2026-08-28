@@ -5,6 +5,7 @@
 import { BaseStore } from '$/database/core/BaseStore.js'
 import { FieldTypes } from '$/database/utils/validation.js'
 import { nanoid } from 'nanoid'
+import { isPresetScript, SCRIPT_SOURCE } from '$/utils/automation/preset-scripts.js'
 
 const automationSchema = {
   id: {
@@ -18,6 +19,9 @@ const automationSchema = {
   name: {
     type: FieldTypes.STRING,
     required: true,
+  },
+  source: {
+    type: FieldTypes.STRING,
   },
   steps: {
     type: FieldTypes.ARRAY,
@@ -47,6 +51,7 @@ class AutomationStore extends BaseStore {
     const now = Date.now()
     const record = {
       id: data.id || nanoid(),
+      source: data.source || SCRIPT_SOURCE.CUSTOM,
       steps: [],
       vars: {},
       schemaVersion: 2,
@@ -78,6 +83,17 @@ class AutomationStore extends BaseStore {
 
   async updateScript(id, patch) {
     return this.update(id, patch)
+  }
+
+  async deleteById(id) {
+    const existing = await this.table.get(id)
+    if (isPresetScript(existing)) {
+      return {
+        success: false,
+        error: { message: 'Official preset scripts cannot be deleted' },
+      }
+    }
+    return super.deleteById(id)
   }
 }
 
